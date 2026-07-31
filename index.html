@@ -31,10 +31,10 @@
 
       <div class="content">
         <section class="metrics">
-          <article><label>今日总成交额</label><h2>1,482.6<small>亿元</small></h2><footer><em>较昨日 +8.4%</em><span class="spark">▁▂▃▂▄▅▆</span></footer></article>
-          <article class="featured"><label>盘中资金净流入 <small>估算</small></label><h2 class="up">+72.3<small>亿元</small></h2><footer>净流入 346 只<span class="spark">▁▂▂▄▅▆▇</span></footer></article>
-          <article><label>昨日确认净申赎 <small>确认</small></label><h2 class="up">+51.8<small>亿元</small></h2><footer>连续 4 日净流入<span class="spark">▁▂▃▃▄▆▇</span></footer></article>
-          <article><label>全市场 ETF 规模</label><h2>4.26<small>万亿元</small></h2><footer><em>近20日 +2.1%</em><span class="spark blue">▁▂▂▃▄▅▆</span></footer></article>
+          <article><label>今日总成交额</label><h2 id="metric-turnover">1,482.6<small>亿元</small></h2><footer><em id="metric-count">共 1,042 只</em><span class="spark">▁▂▃▂▄▅▆</span></footer></article>
+          <article class="featured"><label>盘中资金净流入 <small>估算</small></label><h2 class="up" id="metric-flow">+72.3<small>亿元</small></h2><footer><span id="metric-inflow-count">净流入 346 只</span><span class="spark">▁▂▂▄▅▆▇</span></footer></article>
+          <article><label>平均涨跌幅 <small>盘中</small></label><h2 class="up" id="metric-change">+0.42<small>%</small></h2><footer><span>按全市场 ETF 等权</span><span class="spark">▁▂▃▃▄▆▇</span></footer></article>
+          <article><label>全市场 ETF 规模</label><h2 id="metric-aum">4.26<small>万亿元</small></h2><footer><em id="metric-source">等待自动更新</em><span class="spark blue">▁▂▂▃▄▅▆</span></footer></article>
         </section>
 
         <section class="top-grid">
@@ -78,7 +78,7 @@
         </section>
 
         <section class="bottom-grid">
-          <article class="panel managers"><div class="panel-head"><div><h3>管理人资金流竞争</h3><small>今日全产品合计</small></div></div>
+          <article class="panel managers" id="manager-list"><div class="panel-head"><div><h3>管理人资金流竞争</h3><small>今日全产品合计</small></div></div>
             <div><b>1</b><span><strong>华夏基金</strong><small>93 只 ETF · 规模 6,432 亿</small></span><i style="--w:100%"></i><em>+25.6 亿</em></div>
             <div><b>2</b><span><strong>易方达基金</strong><small>91 只 ETF · 规模 5,918 亿</small></span><i style="--w:82%"></i><em>+18.3 亿</em></div>
             <div><b>3</b><span><strong>华泰柏瑞基金</strong><small>48 只 ETF · 规模 4,326 亿</small></span><i style="--w:63%"></i><em>+12.7 亿</em></div>
@@ -90,7 +90,7 @@
             <div><time>13:48</time><span><strong>科创50 ETF 成交显著放量</strong><small>成交额环比 +42%</small></span><em>+3.6 亿</em></div>
           </article>
         </section>
-        <div class="footnote">数据范围：上海证券交易所、深圳证券交易所上市 ETF · 行情口径：同花顺 iFinD · 当前为演示数据</div>
+        <div class="footnote" id="data-status">数据范围：上海证券交易所、深圳证券交易所上市 ETF · 正在等待首次自动更新</div>
       </div>
     </main>
   </div>
