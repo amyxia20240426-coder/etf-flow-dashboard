@@ -21,6 +21,8 @@ from typing import Any
 
 import requests
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
@@ -29,9 +31,42 @@ DASHBOARD_FILE = DATA_DIR / "dashboard.json"
 HISTORY_FILE = DATA_DIR / "market_history.json"
 
 IFIND_BASE = "https://quantapi.51ifind.com/api/v1"
-EASTMONEY_LIST = "https://88.push2.eastmoney.com/api/qt/clist/get"
-SESSION = requests.Session()
-SESSION.headers.update({"User-Agent": "Mozilla/5.0 ETF-Flow-Dashboard/1.0"})
+EASTMONEY_LIST_HOSTS = [
+    "https://push2.eastmoney.com/api/qt/clist/get",
+    "https://82.push2.eastmoney.com/api/qt/clist/get",
+    "https://33.push2.eastmoney.com/api/qt/clist/get",
+    "https://28.push2.eastmoney.com/api/qt/clist/get",
+]
+
+
+def build_session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=5,
+        connect=5,
+        read=5,
+        backoff_factor=1.2,
+        status_forcelist=(408, 425, 429, 500, 502, 503, 504),
+        allowed_methods=frozenset({"GET", "POST"}),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=20, pool_maxsize=20)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    session.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0 Safari/537.36"
+        ),
+        "Accept": "application/json,text/plain,*/*",
+        "Referer": "https://quote.eastmoney.com/",
+        "Connection": "close",
+    })
+    return session
+
+
+SESSION = build_session()
 
 
 def safe_number(value: Any, divisor: float = 1.0) -> float:
@@ -73,9 +108,30 @@ def fetch_universe() -> list[dict[str, Any]]:
         "fs": "b:MK0021,b:MK0022,b:MK0023,b:MK0024",
         "fields": "f12,f14,f2,f3,f6,f20,f62,f184",
     }
-    response = SESSION.get(EASTMONEY_LIST, params=params, timeout=30)
-    response.raise_for_status()
-    diff = (((response.json() or {}).get("data") or {}).get("diff") or [])
+    errors: list[str] = []
+    diff: list[dict[str, Any]] = []
+    for host in EASTMONEY_LIST_HOSTS:
+        for attempt in range(1, 4):
+            try:
+                response = SESSION.get(host, params=params, timeout=(15, 45))
+                response.raise_for_status()
+                diff = (((response.json() or {}).get("data") or {}).get("diff") or [])
+                if diff:
+                    print(f"ETF universe loaded from host {host.split('/')[2]}")
+                    break
+                errors.append(f"{host}: empty response")
+            except (requests.RequestException, ValueError) as exc:
+                errors.append(f"{host} attempt {attempt}: {type(exc).__name__}")
+                time.sleep(min(10, attempt * 2))
+        if diff:
+            break
+    if not diff:
+        cached = load_json(DASHBOARD_FILE, {}).get("etfs", [])
+        if cached:
+            print("All quote hosts unavailable; using last successful ETF snapshot", file=sys.stderr)
+            return cached
+        summary = "; ".join(errors[-8:])
+        raise RuntimeError(f"All ETF quote hosts failed. Recent attempts: {summary}")
     rows: list[dict[str, Any]] = []
     for raw in diff:
         code = str(raw.get("f12") or "").strip()
