@@ -1,0 +1,49 @@
+name: Update ETF data
+
+on:
+  workflow_dispatch:
+    inputs:
+      full_metadata_refresh:
+        description: "Refresh every manager and tracking-index profile"
+        required: false
+        default: "true"
+  schedule:
+    - cron: "*/30 1-7 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: etf-data-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Update dashboard data
+        env:
+          IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
+          FULL_METADATA_REFRESH: ${{ github.event.inputs.full_metadata_refresh || 'false' }}
+        run: python update_data.py
+
+      - name: Commit changed data
+        run: |
+          git config user.name "etf-data-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/dashboard.json data/master.json data/market_history.json
+          git diff --cached --quiet || git commit -m "Update ETF dashboard data"
+          git push

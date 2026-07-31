@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "generated_at": null,
+  "history_start": null,
+  "source_label": "演示数据，等待首次自动更新",
+  "metrics": {
+    "etf_count": 1042,
+    "turnover_yi": 1482.6,
+    "estimated_flow_yi": 72.3,
+    "inflow_count": 346,
+    "average_change_pct": 0.42,
+    "aum_yi": 42600
+  },
+  "indices": [],
+  "managers": [],
+  "etfs": []
+}
