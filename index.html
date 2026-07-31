@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FlowLens · 沪深ETF资金流看板</title>
+  <meta name="description" content="沪深两市ETF成交、资金流、同指数聚合与管理人竞争看板">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand"><b>F</b><div><strong>FlowLens</strong><small>沪深 ETF 资金雷达</small></div></div>
+      <nav>
+        <button class="active">▦ <span>市场总览</span></button>
+        <button>≋ <span>指数聚合</span></button>
+        <button>◫ <span>管理人竞争</span></button>
+        <button>⌕ <span>ETF 明细</span></button>
+        <button>◌ <span>数据状态</span></button>
+      </nav>
+      <div class="mode"><i></i><div><strong>演示模式</strong><small>接入 iFinD 后切换真实数据</small></div></div>
+    </aside>
+
+    <main>
+      <header>
+        <div><small>沪深两市 · 全市场 ETF</small><h1>市场总览</h1></div>
+        <label class="search">⌕ <input id="search" placeholder="搜索指数、ETF代码"></label>
+        <div class="sync"><i></i><div><b>盘中数据</b><small>更新于 14:30 · 30分钟刷新</small></div></div>
+      </header>
+      <div class="notice"><b>i</b><span><strong>口径提示：</strong>盘中资金流为成交方向估算；基金份额 × NAV 的确认净申赎于下一交易日更新。两种口径分开显示，不混加。</span></div>
+
+      <div class="content">
+        <section class="metrics">
+          <article><label>今日总成交额</label><h2>1,482.6<small>亿元</small></h2><footer><em>较昨日 +8.4%</em><span class="spark">▁▂▃▂▄▅▆</span></footer></article>
+          <article class="featured"><label>盘中资金净流入 <small>估算</small></label><h2 class="up">+72.3<small>亿元</small></h2><footer>净流入 346 只<span class="spark">▁▂▂▄▅▆▇</span></footer></article>
+          <article><label>昨日确认净申赎 <small>确认</small></label><h2 class="up">+51.8<small>亿元</small></h2><footer>连续 4 日净流入<span class="spark">▁▂▃▃▄▆▇</span></footer></article>
+          <article><label>全市场 ETF 规模</label><h2>4.26<small>万亿元</small></h2><footer><em>近20日 +2.1%</em><span class="spark blue">▁▂▂▃▄▅▆</span></footer></article>
+        </section>
+
+        <section class="top-grid">
+          <article class="panel chart-card">
+            <div class="panel-head"><div><h3>全市场资金流趋势</h3><small>ETF 净流入 · 累计值</small></div><div class="period"><button>近1月</button><button>近3月</button><button class="on">近1年</button></div></div>
+            <h2 class="up">+428.6 亿元 <small>区间累计净流入</small></h2>
+            <svg viewBox="0 0 760 240" preserveAspectRatio="none" aria-label="累计净流入趋势">
+              <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#df4141" stop-opacity=".22"/><stop offset="1" stop-color="#df4141" stop-opacity="0"/></linearGradient></defs>
+              <g stroke="#e9eef1" stroke-dasharray="3 5"><path d="M35 45H730"/><path d="M35 95H730"/><path d="M35 145H730"/><path d="M35 195H730"/></g>
+              <path fill="url(#fill)" d="M35 205L60 193 85 199 110 181 135 190 160 170 185 176 210 154 235 164 260 142 285 150 310 122 335 133 360 117 385 129 410 102 435 111 460 86 485 96 510 69 535 82 560 55 585 67 610 41 635 52 660 30 685 39 710 18 730 26V215H35Z"/>
+              <path fill="none" stroke="#df4141" stroke-width="3" d="M35 205L60 193 85 199 110 181 135 190 160 170 185 176 210 154 235 164 260 142 285 150 310 122 335 133 360 117 385 129 410 102 435 111 460 86 485 96 510 69 535 82 560 55 585 67 610 41 635 52 660 30 685 39 710 18 730 26"/>
+            </svg>
+          </article>
+          <article class="panel flow">
+            <div class="panel-head"><div><h3>今日流向结构</h3><small>按资产类别聚合</small></div></div>
+            <div data-flow="88"><span>宽基指数 <b class="up">+48.6亿元</b></span><i></i></div>
+            <div data-flow="54"><span>行业主题 <b class="up">+19.8亿元</b></span><i></i></div>
+            <div data-flow="36"><span>跨境产品 <b class="up">+8.7亿元</b></span><i></i></div>
+            <div data-flow="24"><span>债券ETF <b class="up">+4.1亿元</b></span><i></i></div>
+            <div data-flow="-32"><span>商品ETF <b class="down">−8.9亿元</b></span><i></i></div>
+            <footer><span>净流入合计</span><strong class="up">+72.3 亿元</strong></footer>
+          </article>
+        </section>
+
+        <section class="panel table-card">
+          <div class="panel-head"><div><h3>同指数 ETF 合并资金流</h3><small>跨管理人合并 · 按指数提供商 + 指数代码精确归组</small></div><div class="tabs"><button class="on">净流入</button><button>成交额</button><button>规模</button></div></div>
+          <div class="scroll">
+            <table>
+              <thead><tr><th>排名</th><th>跟踪指数</th><th>ETF / 管理人</th><th>合计规模</th><th>今日成交额</th><th>今日资金流</th><th>近5日资金流</th><th>流入强度</th></tr></thead>
+              <tbody id="rows">
+                <tr data-key="沪深300 000300.SH"><td><b class="rank one">1</b></td><td><strong>沪深300</strong><small>000300.SH</small></td><td>26 只<small>18 家管理人</small></td><td>4,488 亿</td><td>176.4 亿</td><td class="up">+32.8 亿</td><td class="up">+86.2 亿</td><td><i class="intensity" style="--w:100%"></i></td></tr>
+                <tr data-key="中证A500 000510.SH"><td><b class="rank two">2</b></td><td><strong>中证A500</strong><small>000510.SH</small></td><td>32 只<small>28 家管理人</small></td><td>2,146 亿</td><td>153.8 亿</td><td class="up">+21.4 亿</td><td class="up">+45.7 亿</td><td><i class="intensity" style="--w:64%"></i></td></tr>
+                <tr data-key="科创50 000688.SH"><td><b class="rank three">3</b></td><td><strong>科创50</strong><small>000688.SH</small></td><td>12 只<small>10 家管理人</small></td><td>1,563 亿</td><td>118.2 亿</td><td class="up">+16.7 亿</td><td class="up">+28.9 亿</td><td><i class="intensity" style="--w:51%"></i></td></tr>
+                <tr data-key="中证1000 000852.SH"><td><b class="rank">4</b></td><td><strong>中证1000</strong><small>000852.SH</small></td><td>18 只<small>15 家管理人</small></td><td>1,267 亿</td><td>94.6 亿</td><td class="up">+9.2 亿</td><td class="down">−3.1 亿</td><td><i class="intensity" style="--w:38%"></i></td></tr>
+                <tr data-key="创业板指 399006.SZ"><td><b class="rank">5</b></td><td><strong>创业板指</strong><small>399006.SZ</small></td><td>15 只<small>13 家管理人</small></td><td>1,018 亿</td><td>86.3 亿</td><td class="down">−4.8 亿</td><td class="up">+12.6 亿</td><td><i class="intensity" style="--w:31%"></i></td></tr>
+                <tr data-key="上证50 000016.SH"><td><b class="rank">6</b></td><td><strong>上证50</strong><small>000016.SH</small></td><td>14 只<small>12 家管理人</small></td><td>928 亿</td><td>63.1 亿</td><td class="down">−7.1 亿</td><td class="down">−18.4 亿</td><td><i class="intensity" style="--w:26%"></i></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <footer class="table-foot">共 214 个跟踪指数 · 1,042 只上市 ETF <span>页面为演示数据</span></footer>
+        </section>
+
+        <section class="bottom-grid">
+          <article class="panel managers"><div class="panel-head"><div><h3>管理人资金流竞争</h3><small>今日全产品合计</small></div></div>
+            <div><b>1</b><span><strong>华夏基金</strong><small>93 只 ETF · 规模 6,432 亿</small></span><i style="--w:100%"></i><em>+25.6 亿</em></div>
+            <div><b>2</b><span><strong>易方达基金</strong><small>91 只 ETF · 规模 5,918 亿</small></span><i style="--w:82%"></i><em>+18.3 亿</em></div>
+            <div><b>3</b><span><strong>华泰柏瑞基金</strong><small>48 只 ETF · 规模 4,326 亿</small></span><i style="--w:63%"></i><em>+12.7 亿</em></div>
+            <div><b>4</b><span><strong>南方基金</strong><small>72 只 ETF · 规模 3,868 亿</small></span><i style="--w:49%"></i><em>+8.6 亿</em></div>
+          </article>
+          <article class="panel activity"><div class="panel-head"><div><h3>资金异动</h3><small>近 30 分钟</small></div><b class="live">● LIVE</b></div>
+            <div><time>14:26</time><span><strong>中证A500 ETF 合计流入加速</strong><small>华夏、国泰领涨</small></span><em>+4.8 亿</em></div>
+            <div><time>14:11</time><span><strong>证券公司指数由流入转流出</strong><small>6 只产品同步回落</small></span><em class="down">−2.1 亿</em></div>
+            <div><time>13:48</time><span><strong>科创50 ETF 成交显著放量</strong><small>成交额环比 +42%</small></span><em>+3.6 亿</em></div>
+          </article>
+        </section>
+        <div class="footnote">数据范围：上海证券交易所、深圳证券交易所上市 ETF · 行情口径：同花顺 iFinD · 当前为演示数据</div>
+      </div>
+    </main>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
