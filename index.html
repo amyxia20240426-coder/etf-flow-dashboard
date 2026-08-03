@@ -18,7 +18,7 @@
         <button>⌕ <span>ETF 明细</span></button>
         <button>◌ <span>数据状态</span></button>
       </nav>
-      <div class="mode"><i></i><div><strong>演示模式</strong><small>接入 iFinD 后切换真实数据</small></div></div>
+      <div class="mode"><i></i><div><strong>自动更新</strong><small>iFinD + 公开行情补充</small></div></div>
     </aside>
 
     <main>
@@ -39,13 +39,13 @@
 
         <section class="top-grid">
           <article class="panel chart-card">
-            <div class="panel-head"><div><h3>全市场资金流趋势</h3><small>ETF 净流入 · 累计值</small></div><div class="period"><button>近1月</button><button>近3月</button><button class="on">近1年</button></div></div>
-            <h2 class="up">+428.6 亿元 <small>区间累计净流入</small></h2>
-            <svg viewBox="0 0 760 240" preserveAspectRatio="none" aria-label="累计净流入趋势">
+            <div class="panel-head"><div><h3>全市场资金流趋势</h3><small id="trend-coverage">正在读取历史覆盖范围</small></div><div class="period"><button data-days="30">近1月</button><button data-days="90">近3月</button><button class="on" data-days="365">近1年</button></div></div>
+            <h2 class="up" id="trend-total">-- <small>区间累计净流入</small></h2>
+            <svg id="trend-chart" viewBox="0 0 760 240" preserveAspectRatio="none" aria-label="累计净流入趋势">
               <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#df4141" stop-opacity=".22"/><stop offset="1" stop-color="#df4141" stop-opacity="0"/></linearGradient></defs>
               <g stroke="#e9eef1" stroke-dasharray="3 5"><path d="M35 45H730"/><path d="M35 95H730"/><path d="M35 145H730"/><path d="M35 195H730"/></g>
-              <path fill="url(#fill)" d="M35 205L60 193 85 199 110 181 135 190 160 170 185 176 210 154 235 164 260 142 285 150 310 122 335 133 360 117 385 129 410 102 435 111 460 86 485 96 510 69 535 82 560 55 585 67 610 41 635 52 660 30 685 39 710 18 730 26V215H35Z"/>
-              <path fill="none" stroke="#df4141" stroke-width="3" d="M35 205L60 193 85 199 110 181 135 190 160 170 185 176 210 154 235 164 260 142 285 150 310 122 335 133 360 117 385 129 410 102 435 111 460 86 485 96 510 69 535 82 560 55 585 67 610 41 635 52 660 30 685 39 710 18 730 26"/>
+              <path id="trend-area" fill="url(#fill)" d=""/>
+              <path id="trend-line" fill="none" stroke="#df4141" stroke-width="3" d=""/>
             </svg>
           </article>
           <article class="panel flow">
@@ -60,10 +60,10 @@
         </section>
 
         <section class="panel table-card">
-          <div class="panel-head"><div><h3>同指数 ETF 合并资金流</h3><small>跨管理人合并 · 按指数提供商 + 指数代码精确归组</small></div><div class="tabs"><button class="on">净流入</button><button>成交额</button><button>规模</button></div></div>
+          <div class="panel-head"><div><h3 id="aggregation-title">相似投向 ETF 主题聚合</h3><small id="aggregation-note">跨管理人、跨相近指数合并 · 可切回精确指数查看</small></div><div class="tabs" id="aggregation-tabs"><button class="on" data-view="themes">主题族群</button><button data-view="indices">精确指数</button></div></div>
           <div class="scroll">
             <table>
-              <thead><tr><th>排名</th><th>跟踪指数</th><th>ETF / 管理人</th><th>合计规模</th><th>今日成交额</th><th>今日资金流</th><th>近5日资金流</th><th>流入强度</th></tr></thead>
+              <thead><tr><th>排名</th><th id="group-column-title">主题族群</th><th>ETF / 管理人</th><th>合计规模</th><th>今日成交额</th><th>今日资金流</th><th>近5日资金流</th><th>流入强度</th></tr></thead>
               <tbody id="rows">
                 <tr data-key="沪深300 000300.SH"><td><b class="rank one">1</b></td><td><strong>沪深300</strong><small>000300.SH</small></td><td>26 只<small>18 家管理人</small></td><td>4,488 亿</td><td>176.4 亿</td><td class="up">+32.8 亿</td><td class="up">+86.2 亿</td><td><i class="intensity" style="--w:100%"></i></td></tr>
                 <tr data-key="中证A500 000510.SH"><td><b class="rank two">2</b></td><td><strong>中证A500</strong><small>000510.SH</small></td><td>32 只<small>28 家管理人</small></td><td>2,146 亿</td><td>153.8 亿</td><td class="up">+21.4 亿</td><td class="up">+45.7 亿</td><td><i class="intensity" style="--w:64%"></i></td></tr>
@@ -74,7 +74,7 @@
               </tbody>
             </table>
           </div>
-          <footer class="table-foot">共 214 个跟踪指数 · 1,042 只上市 ETF <span>页面为演示数据</span></footer>
+          <footer class="table-foot" id="table-foot">正在读取聚合数据</footer>
         </section>
 
         <section class="bottom-grid">
