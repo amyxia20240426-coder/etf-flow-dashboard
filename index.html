@@ -6,6 +6,10 @@
   <title>FlowLens · 沪深ETF资金流看板</title>
   <meta name="description" content="沪深两市ETF成交、资金流、同指数聚合与管理人竞争看板">
   <link rel="stylesheet" href="styles.css">
+  <style>
+    .daily-flow-card{margin-top:15px}.daily-flow-layout{display:grid;grid-template-columns:230px 1fr;gap:24px;margin-top:18px}.previous-day-card{padding:16px 18px;border-radius:8px;background:#f7f9fa;border:1px solid var(--line)}.previous-day-card label,.previous-day-card strong,.previous-day-card small{display:block}.previous-day-card label{color:#657482;font-size:10px;font-weight:bold}.previous-day-card>strong{color:#8b96a0;font-size:10px;margin-top:8px}.previous-day-card h2{font-size:24px;margin:18px 0 8px}.previous-day-card small{color:#98a2aa;font-size:8px}.daily-flow-list{display:grid;gap:9px}.daily-flow-row{display:grid;grid-template-columns:82px 1fr 95px;align-items:center;gap:12px;min-height:28px}.daily-flow-row time{font-size:9px;color:#667681}.daily-flow-row>strong{text-align:right;font-size:10px}.daily-axis{position:relative;display:block;height:12px;background:linear-gradient(90deg,#f7f9fa 49.8%,#d7e0e5 49.8%,#d7e0e5 50.2%,#f7f9fa 50.2%);border-radius:3px;overflow:hidden}.daily-axis i{position:absolute;top:2px;height:8px;width:var(--w);border-radius:3px}.daily-axis i.positive{left:50%;background:var(--red)}.daily-axis i.negative{right:50%;background:var(--green)}.daily-flow-summary{display:flex;justify-content:space-between;gap:12px;margin-top:16px;padding-top:13px;border-top:1px dashed #dfe5e9;color:#8b96a0;font-size:9px}.daily-flow-summary strong{font-size:10px}.daily-flow-empty{color:#98a2aa;font-size:10px;padding:20px}@media(max-width:700px){.daily-flow-layout{grid-template-columns:1fr}.daily-flow-row{grid-template-columns:72px 1fr 82px}}
+    .managers>div:not(.panel-head){grid-template-columns:25px 165px 1fr 105px}.managers em small{display:block;color:#96a0a9!important;font-size:7px;margin-top:3px;white-space:nowrap}
+  </style>
 </head>
 <body>
   <div class="shell">
@@ -39,7 +43,7 @@
 
         <section class="top-grid">
           <article class="panel chart-card">
-            <div class="panel-head"><div><h3>全市场资金流趋势</h3><small id="asof-trend" class="section-asof">截至时间：读取中</small><small id="trend-coverage">正在读取历史覆盖范围</small></div><div class="period"><button data-days="30">近1月</button><button data-days="90">近3月</button><button class="on" data-days="365">近1年</button></div></div>
+            <div class="panel-head"><div><h3>全市场日度净申赎趋势</h3><small id="asof-trend" class="section-asof">截至时间：读取中</small><small id="trend-coverage">正在读取 iFinD 历史覆盖范围</small></div><div class="period"><button data-days="30">近1月</button><button data-days="90">近3月</button><button class="on" data-days="365">近1年</button></div></div>
             <h2 class="up" id="trend-total">-- <small>区间累计净流入</small></h2>
             <svg id="trend-chart" viewBox="0 0 760 240" preserveAspectRatio="none" aria-label="累计净流入趋势">
               <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#df4141" stop-opacity=".22"/><stop offset="1" stop-color="#df4141" stop-opacity="0"/></linearGradient></defs>
@@ -55,11 +59,25 @@
           </article>
         </section>
 
+        <section class="panel daily-flow-card">
+          <div class="panel-head"><div><h3>上一日及近一周每日净申赎</h3><small id="asof-daily-flow" class="section-asof">截至时间：读取中</small><small>iFinD ETF份额变化 × 当日单位净值 · 红色净申购，绿色净赎回</small></div></div>
+          <div class="daily-flow-layout">
+            <div class="previous-day-card">
+              <label>上一有效交易日</label>
+              <strong id="previous-day-date">--</strong>
+              <h2 id="previous-day-flow">--</h2>
+              <small>全市场ETF日终净申购赎回</small>
+            </div>
+            <div class="daily-flow-list" id="daily-flow-list"></div>
+          </div>
+          <footer class="daily-flow-summary"><span id="daily-flow-coverage">正在读取历史数据</span><strong id="weekly-flow-total">--</strong></footer>
+        </section>
+
         <section class="panel table-card">
           <div class="panel-head"><div><h3 id="aggregation-title">相似投向 ETF 主题聚合</h3><small id="asof-aggregation" class="section-asof">截至时间：读取中</small><small id="aggregation-note">跨管理人、跨相近指数合并 · 可切回精确指数查看</small></div><div class="tabs" id="aggregation-tabs"><button class="on" data-view="themes">主题族群</button><button data-view="indices">精确指数</button></div></div>
           <div class="scroll">
             <table>
-              <thead><tr><th>排名</th><th id="group-column-title">主题族群</th><th>ETF / 管理人</th><th>合计规模</th><th>今日成交额</th><th>今日资金流</th><th>近5日资金流</th><th>流入强度</th></tr></thead>
+              <thead><tr><th>排名</th><th id="group-column-title">主题族群</th><th>ETF / 管理人</th><th>合计规模</th><th>今日成交额</th><th>盘中资金流估算</th><th>近5日净申赎</th><th>盘中流入强度</th></tr></thead>
               <tbody id="rows">
                 <tr data-key="沪深300 000300.SH"><td><b class="rank one">1</b></td><td><strong>沪深300</strong><small>000300.SH</small></td><td>26 只<small>18 家管理人</small></td><td>4,488 亿</td><td>176.4 亿</td><td class="up">+32.8 亿</td><td class="up">+86.2 亿</td><td><i class="intensity" style="--w:100%"></i></td></tr>
                 <tr data-key="中证A500 000510.SH"><td><b class="rank two">2</b></td><td><strong>中证A500</strong><small>000510.SH</small></td><td>32 只<small>28 家管理人</small></td><td>2,146 亿</td><td>153.8 亿</td><td class="up">+21.4 亿</td><td class="up">+45.7 亿</td><td><i class="intensity" style="--w:64%"></i></td></tr>
@@ -74,7 +92,7 @@
         </section>
 
         <section class="bottom-grid">
-          <article class="panel managers" id="manager-list"><div class="panel-head"><div><h3>管理人资金流竞争</h3><small id="asof-managers" class="section-asof">截至时间：读取中</small><small>今日全产品合计</small></div></div>
+          <article class="panel managers" id="manager-list"><div class="panel-head"><div><h3>管理人资金流竞争</h3><small id="asof-managers" class="section-asof">截至时间：读取中</small><small>盘中估算与近5日净申赎分列</small></div></div>
             <div><b>1</b><span><strong>华夏基金</strong><small>93 只 ETF · 规模 6,432 亿</small></span><i style="--w:100%"></i><em>+25.6 亿</em></div>
             <div><b>2</b><span><strong>易方达基金</strong><small>91 只 ETF · 规模 5,918 亿</small></span><i style="--w:82%"></i><em>+18.3 亿</em></div>
             <div><b>3</b><span><strong>华泰柏瑞基金</strong><small>48 只 ETF · 规模 4,326 亿</small></span><i style="--w:63%"></i><em>+12.7 亿</em></div>

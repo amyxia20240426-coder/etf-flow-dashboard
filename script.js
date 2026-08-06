@@ -1,6 +1,5 @@
 let rows = [...document.querySelectorAll("#rows tr")];
 let dashboardData = null;
-let historyData = [];
 let aggregationView = "themes";
 
 const search = document.querySelector("#search");
@@ -47,6 +46,29 @@ const shortTime = value => {
   }).format(date);
 };
 
+const marketDateKey = value => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const get = type => parts.find(part => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
+
+const shortMarketDate = dateKey => {
+  const date = new Date(`${dateKey}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return dateKey;
+  const day = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    weekday: "short"
+  }).format(date);
+  return `${dateKey.slice(5)} ${day}`;
+};
+
 const isStale = value => {
   const date = new Date(value);
   return !Number.isNaN(date.getTime()) && Date.now() - date.getTime() > 18 * 60 * 60 * 1000;
@@ -76,6 +98,7 @@ function bindSearch() {
 
 function renderAggregation() {
   if (!dashboardData) return;
+  const hasDailySubscription = Boolean(dashboardData.daily_subscription_status?.available);
   const isTheme = aggregationView === "themes";
   const items = (isTheme ? dashboardData.themes : dashboardData.indices) || [];
   const indexCount = (dashboardData.indices || []).length;
@@ -104,7 +127,7 @@ function renderAggregation() {
         <td>${number(item.aum_yi)} 亿</td>
         <td>${number(item.turnover_yi)} 亿</td>
         <td class="${colorClass(item.estimated_flow_yi)}">${signed(item.estimated_flow_yi)}</td>
-        <td class="${colorClass(item.flow_5d_yi)}">${signed(item.flow_5d_yi)}</td>
+        <td class="${hasDailySubscription ? colorClass(item.net_subscription_5d_yi) : ""}">${hasDailySubscription ? signed(item.net_subscription_5d_yi) : "待回填"}</td>
         <td><i class="intensity" style="--w:${Math.min(100, Math.abs(item.flow_strength || 0))}%"></i></td>
       </tr>`;
   }).join("");
@@ -164,22 +187,65 @@ function renderActivity() {
     </div>`).join("") || `<div><span><strong>尚无动态主题数据</strong><small>运行更新任务后生成</small></span></div>`;
 }
 
-function dailyHistory(raw) {
-  const latestByDate = new Map();
-  [...(raw || [])]
-    .sort((a, b) => String(a.observed_at).localeCompare(String(b.observed_at)))
-    .forEach(item => {
-      if (!item.observed_at) return;
-      latestByDate.set(item.observed_at.slice(0, 10), item);
-    });
-  return [...latestByDate.entries()].map(([date, item]) => ({
-    date,
-    flow: Number(item.estimated_flow_yi || 0)
-  }));
+function dailySubscriptionHistory() {
+  return [...(dashboardData?.daily_subscription_history || [])]
+    .filter(item => item.date)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .map(item => ({
+      date: item.date,
+      flow: Number(item.net_subscription_yi || 0),
+      etfCount: Number(item.etf_count || 0)
+    }));
+}
+
+function renderDailyFlow() {
+  const daily = dailySubscriptionHistory();
+  const week = daily.slice(-5);
+  const previous = daily.length ? daily[daily.length - 1] : null;
+  const previousDate = document.querySelector("#previous-day-date");
+  const previousFlow = document.querySelector("#previous-day-flow");
+  if (previous) {
+    previousDate.textContent = previous.date;
+    previousFlow.textContent = signed(previous.flow);
+    previousFlow.className = colorClass(previous.flow);
+  } else {
+    previousDate.textContent = "历史覆盖不足";
+    previousFlow.textContent = "--";
+    previousFlow.className = "";
+  }
+
+  const maxAbs = Math.max(1, ...week.map(item => Math.abs(item.flow)));
+  const list = document.querySelector("#daily-flow-list");
+  if (list) {
+    list.innerHTML = week.map(item => {
+      const width = Math.max(2, Math.abs(item.flow) / maxAbs * 50);
+      const direction = item.flow >= 0 ? "positive" : "negative";
+      return `<div class="daily-flow-row">
+        <time>${shortMarketDate(item.date)}</time>
+        <span class="daily-axis"><i class="${direction}" style="--w:${width.toFixed(1)}%"></i></span>
+        <strong class="${colorClass(item.flow)}">${signed(item.flow)}</strong>
+      </div>`;
+    }).join("") || `<div class="daily-flow-empty">尚无历史数据</div>`;
+  }
+
+  const total = week.reduce((sum, item) => sum + item.flow, 0);
+  const totalNode = document.querySelector("#weekly-flow-total");
+  if (totalNode) {
+    totalNode.textContent = week.length
+      ? `近${week.length}个有效交易日合计 ${signed(total)}`
+      : "待回填";
+    totalNode.className = week.length ? colorClass(total) : "";
+  }
+  const coverage = document.querySelector("#daily-flow-coverage");
+  if (coverage) {
+    coverage.textContent = week.length
+      ? `展示 ${week[0].date} 至 ${week[week.length - 1].date}；最新日覆盖 ${previous.etfCount} 只ETF`
+      : (dashboardData?.daily_subscription_status?.message || "等待iFinD历史份额与净值回填");
+  }
 }
 
 function renderTrend(days) {
-  const allDaily = dailyHistory(historyData);
+  const allDaily = dailySubscriptionHistory();
   const now = new Date();
   const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - days + 1);
@@ -187,18 +253,20 @@ function renderTrend(days) {
   const selected = allDaily.filter(item => item.date >= cutoffKey);
   const total = selected.reduce((sum, item) => sum + item.flow, 0);
   const totalNode = document.querySelector("#trend-total");
-  totalNode.innerHTML = `${signed(total)} <small>区间累计净流入</small>`;
-  totalNode.className = colorClass(total);
+  totalNode.innerHTML = selected.length
+    ? `${signed(total)} <small>区间累计净申购</small>`
+    : `-- <small>等待iFinD历史净申赎</small>`;
+  totalNode.className = selected.length ? colorClass(total) : "";
 
   const coverage = document.querySelector("#trend-coverage");
   if (!selected.length) {
     coverage.textContent = "当前区间尚无历史数据";
   } else if (selected.length < Math.min(days, 20)) {
     coverage.textContent =
-      `历史覆盖不足：仅 ${selected.length} 个交易日，自 ${selected[0].date} 起；系统会随每次更新自动累积`;
+      `历史覆盖不足：仅 ${selected.length} 个交易日，自 ${selected[0].date} 起；等待iFinD补齐历史净申赎`;
   } else {
     coverage.textContent =
-      `${selected[0].date} 至 ${selected[selected.length - 1].date} · 日末估算净流入累计`;
+      `${selected[0].date} 至 ${selected[selected.length - 1].date} · ETF份额变化 × 当日单位净值`;
   }
 
   const cumulative = [];
@@ -251,7 +319,8 @@ function renderDashboard(data) {
   setAsOf("asof-flow", "intraday_flow", "成交方向资金流估算");
   setAsOf("asof-change", "price_change", "ETF行情等权涨跌幅");
   setAsOf("asof-aum", "aum", "行情总市值口径");
-  setAsOf("asof-trend", "trend", "历史文件最新观测点");
+  setAsOf("asof-trend", "trend", "iFinD日度净申购赎回");
+  setAsOf("asof-daily-flow", "daily_flow", "iFinD日度净申购赎回");
   setAsOf("asof-flow-structure", "flow_structure", "盘中行情快照");
   setAsOf("asof-aggregation", "aggregation", "盘中行情快照");
   setAsOf("asof-activity", "activity", "当前资金流截面观察");
@@ -262,38 +331,40 @@ function renderDashboard(data) {
   renderAggregation();
   renderFlowStructure();
   renderActivity();
+  renderDailyFlow();
 
   const managers = (data.managers || []).slice(0, 12).map((item, index) => `
     <div>
       <b>${index + 1}</b>
       <span><strong>${item.manager || "待补充管理人"}</strong><small>${item.etf_count || 0} 只 ETF · 规模 ${number(item.aum_yi)} 亿</small></span>
       <i style="--w:${Math.min(100, item.bar_width || 0)}%"></i>
-      <em class="${colorClass(item.estimated_flow_yi)}">${signed(item.estimated_flow_yi)}</em>
+      <em class="${colorClass(item.estimated_flow_yi)}">${signed(item.estimated_flow_yi)}<small>盘中估算</small><small class="${data.daily_subscription_status?.available ? colorClass(item.net_subscription_5d_yi) : ""}">${data.daily_subscription_status?.available ? `5日申赎 ${signed(item.net_subscription_5d_yi)}` : "5日申赎待回填"}</small></em>
     </div>`).join("");
   if (managers) {
     const managerInfo = asOfInfo("managers", "盘中行情快照");
     document.querySelector("#manager-list").innerHTML =
-      `<div class="panel-head"><div><h3>管理人资金流竞争</h3><small id="asof-managers" class="section-asof ${managerInfo.stale ? "stale" : ""}">${managerInfo.text}</small><small>今日全产品合计</small></div></div>${managers}`;
+      `<div class="panel-head"><div><h3>管理人资金流竞争</h3><small id="asof-managers" class="section-asof ${managerInfo.stale ? "stale" : ""}">${managerInfo.text}</small><small>盘中估算与近5日净申赎分列</small></div></div>${managers}`;
   }
 
   const generated = data.generated_at
     ? new Date(data.generated_at).toLocaleString("zh-CN", { hour12: false })
     : "未知";
+  const dailyStatus = data.daily_subscription_status?.available
+    ? `日度净申赎已覆盖至 ${data.daily_subscription_status.last_date}`
+    : `日度净申赎：${data.daily_subscription_status?.message || "等待回填"}`;
   document.querySelector("#data-status").textContent =
-    `数据范围：沪深上市 ETF · 页面数据文件生成：${generated} · 各板块实际截至时间见板块标题 · 数据源：${data.source_label || "自动采集"} · 历史起点：${data.history_start || "首次运行后生成"}`;
+    `数据范围：沪深上市 ETF · 页面数据文件生成：${generated} · ${dailyStatus} · 各板块实际截至时间见板块标题 · 数据源：${data.source_label || "自动采集"} · 历史起点：${data.history_start || "首次运行后生成"}`;
   bindSearch();
 }
 
 async function loadData() {
   try {
     const stamp = Date.now();
-    const [dashboardResponse, historyResponse] = await Promise.all([
-      fetch(`data/dashboard.json?t=${stamp}`, { cache: "no-store" }),
-      fetch(`data/market_history.json?t=${stamp}`, { cache: "no-store" })
-    ]);
+    const dashboardResponse = await fetch(
+      `data/dashboard.json?t=${stamp}`, { cache: "no-store" }
+    );
     if (!dashboardResponse.ok) throw new Error(`dashboard HTTP ${dashboardResponse.status}`);
     dashboardData = await dashboardResponse.json();
-    historyData = historyResponse.ok ? await historyResponse.json() : [];
     renderDashboard(dashboardData);
     renderTrend(365);
   } catch (error) {

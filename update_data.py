@@ -11,6 +11,7 @@ from __future__ import annotations
 import concurrent.futures
 import datetime as dt
 import json
+import math
 import os
 import re
 import sys
@@ -96,7 +97,7 @@ def exchange_code(code: str) -> str:
     return f"{code}.SH" if code.startswith(("5", "6")) else f"{code}.SZ"
 
 
-def fetch_universe() -> list[dict[str, Any]]:
+def fetch_universe(observed_at: str) -> tuple[list[dict[str, Any]], str, bool]:
     base_params = {
         "pn": 1,
         "pz": 100,
@@ -113,6 +114,7 @@ def fetch_universe() -> list[dict[str, Any]]:
     for host in EASTMONEY_LIST_HOSTS:
         page_rows: list[dict[str, Any]] = []
         total = None
+        complete = False
         for page in range(1, 80):
             params = {**base_params, "pn": page}
             page_diff: list[dict[str, Any]] = []
@@ -133,20 +135,31 @@ def fetch_universe() -> list[dict[str, Any]]:
                 break
             page_rows.extend(page_diff)
             if (total and len(page_rows) >= total) or len(page_diff) < base_params["pz"]:
+                complete = True
                 break
             time.sleep(0.15)
-        if page_rows:
+        if page_rows and complete:
             diff = page_rows
             print(
                 f"ETF universe loaded from host {host.split('/')[2]}: "
                 f"{len(diff)} rows across multiple pages"
             )
             break
+        if page_rows:
+            errors.append(
+                f"{host}: incomplete pagination {len(page_rows)}/{total or 'unknown'}; discarded"
+            )
     if not diff:
-        cached = load_json(DASHBOARD_FILE, {}).get("etfs", [])
+        cached_dashboard = load_json(DASHBOARD_FILE, {})
+        cached = cached_dashboard.get("etfs", [])
         if cached:
             print("All quote hosts unavailable; using last successful ETF snapshot", file=sys.stderr)
-            return cached
+            cached_time = (
+                ((cached_dashboard.get("as_of") or {}).get("intraday_flow") or {}).get("time")
+                or cached_dashboard.get("generated_at")
+                or observed_at
+            )
+            return cached, str(cached_time), False
         summary = "; ".join(errors[-8:])
         raise RuntimeError(f"All ETF quote hosts failed. Recent attempts: {summary}")
     rows: list[dict[str, Any]] = []
@@ -168,7 +181,7 @@ def fetch_universe() -> list[dict[str, Any]]:
         })
     if not rows:
         raise RuntimeError("ETF universe returned no rows")
-    return rows
+    return rows, observed_at, True
 
 
 def get_ifind_access_token(refresh_token: str) -> str:
@@ -236,6 +249,270 @@ def update_ifind_quotes(rows: list[dict[str, Any]], access_token: str) -> bool:
                 target["turnover_yi"] = safe_number(amount, 100_000_000)
         time.sleep(0.12)
     return updated
+
+
+def ifind_error(payload: dict[str, Any]) -> str:
+    code = payload.get("errorcode", payload.get("errorCode", 0))
+    if code in (None, 0, "0"):
+        return ""
+    return str(payload.get("errmsg") or payload.get("errorMsg") or f"errorcode={code}")
+
+
+def parse_ifind_date_sequence(
+    payload: dict[str, Any], indicators: tuple[str, str]
+) -> list[dict[str, Any]]:
+    """Normalize the common row- and column-oriented iFinD JSON shapes."""
+    share_indicator, nav_indicator = indicators
+    aliases = {
+        "code": ("thscode", "thsCode", "code", "securityCode"),
+        "date": ("time", "date", "tradeDate", "tradedate"),
+        "share": (share_indicator, "share"),
+        "nav": (nav_indicator, "nav"),
+    }
+    rows: list[dict[str, Any]] = []
+
+    def first(mapping: dict[str, Any], names: tuple[str, ...], default: Any = None) -> Any:
+        return next((mapping[name] for name in names if name in mapping), default)
+
+    def add_row(mapping: dict[str, Any], parent_code: str = "", parent_date: str = "") -> None:
+        code = str(first(mapping, aliases["code"], parent_code) or parent_code)
+        date_value = first(mapping, aliases["date"], parent_date) or parent_date
+        date_text = str(date_value)[:10]
+        if re.fullmatch(r"\d{8}", date_text):
+            date_text = f"{date_text[:4]}-{date_text[4:6]}-{date_text[6:8]}"
+        share = first(mapping, aliases["share"])
+        nav = first(mapping, aliases["nav"])
+        if code and date_value and share not in (None, "", "-", "--"):
+            rows.append({
+                "code": code,
+                "date": date_text,
+                "share": safe_number(share),
+                "nav": safe_number(nav),
+            })
+
+    def visit(node: Any, parent_code: str = "", parent_times: list[Any] | None = None) -> None:
+        if isinstance(node, list):
+            for item in node:
+                visit(item, parent_code, parent_times)
+            return
+        if not isinstance(node, dict):
+            return
+        code = str(first(node, aliases["code"], parent_code) or parent_code)
+        times_value = first(node, aliases["date"], parent_times)
+        times = times_value if isinstance(times_value, list) else parent_times
+
+        # Column-oriented tables: {time:[...], indicator:[...]}.
+        columns = {
+            key: value for key, value in node.items()
+            if isinstance(value, list) and key not in ("tables", "rows", "data")
+        }
+        if columns and any(key in columns for key in aliases["share"]):
+            length = max((len(value) for value in columns.values()), default=0)
+            for index in range(length):
+                row = {
+                    key: value[index] if index < len(value) else None
+                    for key, value in columns.items()
+                }
+                if times and "time" not in row and index < len(times):
+                    row["time"] = times[index]
+                add_row(row, code)
+        elif not any(isinstance(value, (dict, list)) for value in node.values()):
+            add_row(node, code)
+
+        for key in ("tables", "table", "data", "rows"):
+            if key in node:
+                visit(node[key], code, times)
+
+    visit(payload)
+    unique: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        unique[(row["code"], row["date"])] = row
+    return list(unique.values())
+
+
+def infer_share_multiplier(points: list[dict[str, Any]], current_aum_yi: float) -> float:
+    latest = next(
+        (item for item in reversed(points) if item.get("share", 0) > 0 and item.get("nav", 0) > 0),
+        None,
+    )
+    if not latest or current_aum_yi <= 0:
+        return 1.0
+    candidates = (1.0, 10_000.0, 100_000_000.0)
+    def distance(multiplier: float) -> float:
+        calculated = latest["share"] * multiplier * latest["nav"] / 100_000_000
+        return abs(math.log10(max(calculated, 1e-12) / current_aum_yi))
+    return min(candidates, key=distance)
+
+
+def calculate_subscription_flows(
+    series_rows: list[dict[str, Any]], current_rows: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    by_code: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in series_rows:
+        by_code[item["code"]].append(item)
+    current_aum = {item["code"]: safe_number(item.get("aum_yi")) for item in current_rows}
+    recent_by_etf: dict[str, list[dict[str, Any]]] = {}
+    market_by_date: dict[str, dict[str, Any]] = {}
+    for code, points in by_code.items():
+        points.sort(key=lambda item: item["date"])
+        multiplier = infer_share_multiplier(points, current_aum.get(code, 0))
+        flows: list[dict[str, Any]] = []
+        previous = None
+        for point in points:
+            if previous and point["share"] > 0 and point["nav"] > 0:
+                try:
+                    gap_days = (
+                        dt.date.fromisoformat(point["date"])
+                        - dt.date.fromisoformat(previous["date"])
+                    ).days
+                except ValueError:
+                    gap_days = 999
+                if gap_days > 10:
+                    previous = point
+                    continue
+                share_ratio = point["share"] / max(previous["share"], 1e-12)
+                nav_ratio = point["nav"] / max(previous["nav"], 1e-12)
+                # Unit splits/consolidations change shares and NAV inversely and
+                # must not be counted as subscriptions or redemptions.
+                is_unit_event = (
+                    (share_ratio > 1.5 or share_ratio < 0.67)
+                    and 0.85 <= share_ratio * nav_ratio <= 1.15
+                )
+                flow = 0.0 if is_unit_event else (
+                    (point["share"] - previous["share"])
+                    * multiplier * point["nav"] / 100_000_000
+                )
+                # Reject obviously broken units without silently turning them into zero.
+                aum = current_aum.get(code, 0)
+                if not aum or abs(flow) <= max(20.0, aum * 1.2):
+                    entry = {
+                        "date": point["date"],
+                        "net_subscription_yi": round(flow, 6),
+                    }
+                    flows.append(entry)
+                    bucket = market_by_date.setdefault(point["date"], {
+                        "date": point["date"],
+                        "net_subscription_yi": 0.0,
+                        "inflow_count": 0,
+                        "outflow_count": 0,
+                        "etf_count": 0,
+                    })
+                    bucket["net_subscription_yi"] += flow
+                    bucket["etf_count"] += 1
+                    bucket["inflow_count"] += int(flow > 0)
+                    bucket["outflow_count"] += int(flow < 0)
+            previous = point
+        recent_by_etf[code] = flows[-25:]
+    market = []
+    for item in sorted(market_by_date.values(), key=lambda value: value["date"]):
+        item["net_subscription_yi"] = round(item["net_subscription_yi"], 4)
+        item["source"] = "iFinD ETF份额变化 × 当日净值"
+        market.append(item)
+    maximum_coverage = max((item["etf_count"] for item in market), default=0)
+    if maximum_coverage >= 500:
+        market = [item for item in market if item["etf_count"] >= maximum_coverage * 0.8]
+    return market[-366:], recent_by_etf
+
+
+def merge_subscription_history(
+    previous_market: list[dict[str, Any]],
+    previous_etf: dict[str, list[dict[str, Any]]],
+    new_market: list[dict[str, Any]],
+    new_etf: dict[str, list[dict[str, Any]]],
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    market = {item["date"]: item for item in previous_market if item.get("date")}
+    market.update({item["date"]: item for item in new_market if item.get("date")})
+    merged_etf: dict[str, list[dict[str, Any]]] = {}
+    for code in set(previous_etf) | set(new_etf):
+        items = {
+            item["date"]: item
+            for item in [*(previous_etf.get(code) or []), *(new_etf.get(code) or [])]
+            if item.get("date")
+        }
+        merged_etf[code] = [items[key] for key in sorted(items)][-25:]
+    return [market[key] for key in sorted(market)][-366:], merged_etf
+
+
+def fetch_ifind_subscription_history(
+    rows: list[dict[str, Any]], access_token: str, previous: dict[str, Any]
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]], dict[str, Any]]:
+    share_indicator = os.getenv("IFIND_ETF_SHARE_INDICATOR", "ths_share_fund").strip()
+    nav_indicator = os.getenv("IFIND_ETF_NAV_INDICATOR", "ths_nav_fund").strip()
+    indicators = (share_indicator, nav_indicator)
+    previous_market = previous.get("daily_subscription_history") or []
+    previous_etf = previous.get("daily_subscription_by_etf") or {}
+    today = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).date()
+    start = today - dt.timedelta(days=366 if not previous_market else 14)
+    day_count = max(1, (today - start).days + 1)
+    batch_size = max(5, min(80, 9000 // max(1, day_count * len(indicators))))
+    collected: list[dict[str, Any]] = []
+    headers = {
+        "access_token": access_token,
+        "Content-Type": "application/json",
+        "ifindlang": "cn",
+    }
+    for offset in range(0, len(rows), batch_size):
+        codes = ",".join(item["code"] for item in rows[offset:offset + batch_size])
+        response = SESSION.post(
+            f"{IFIND_BASE}/date_sequence",
+            headers=headers,
+            json={
+                "codes": codes,
+                "startdate": start.strftime("%Y%m%d"),
+                "enddate": today.strftime("%Y%m%d"),
+                "functionpara": {"Days": "Tradedays", "Fill": "Blank", "Interval": "D"},
+                "indipara": [
+                    {"indicator": share_indicator},
+                    {"indicator": nav_indicator},
+                ],
+            },
+            timeout=(20, 90),
+        )
+        response.raise_for_status()
+        payload = response.json()
+        error = ifind_error(payload)
+        if error:
+            raise RuntimeError(f"iFinD历史份额/净值接口返回：{error}")
+        batch_rows = parse_ifind_date_sequence(payload, indicators)
+        if not batch_rows:
+            raise RuntimeError(
+                f"iFinD未返回可解析的ETF历史份额；请确认指标 {share_indicator} / {nav_indicator} 权限"
+            )
+        collected.extend(batch_rows)
+        time.sleep(0.15)
+    new_market, new_etf = calculate_subscription_flows(collected, rows)
+    if not previous_market and len(new_market) < 60:
+        raise RuntimeError(
+            "iFinD返回的基金份额频率不足，不能作为ETF日度份额；请向iFinD确认ETF每日份额指标权限"
+        )
+    market, by_etf = merge_subscription_history(
+        previous_market, previous_etf, new_market, new_etf
+    )
+    if not market:
+        raise RuntimeError("iFinD历史数据已返回，但无法形成有效的ETF净申购赎回序列")
+    status = {
+        "available": True,
+        "last_date": market[-1]["date"],
+        "history_start": market[0]["date"],
+        "method": "ETF份额日变化 × 当日单位净值",
+        "share_indicator": share_indicator,
+        "nav_indicator": nav_indicator,
+        "coverage_etf_count": market[-1]["etf_count"],
+    }
+    return market, by_etf, status
+
+
+def attach_subscription_metrics(
+    rows: list[dict[str, Any]], by_etf: dict[str, list[dict[str, Any]]]
+) -> None:
+    for row in rows:
+        history = by_etf.get(row["code"]) or []
+        row["net_subscription_1d_yi"] = round(
+            history[-1]["net_subscription_yi"], 4
+        ) if history else 0.0
+        row["net_subscription_5d_yi"] = round(
+            sum(item["net_subscription_yi"] for item in history[-5:]), 4
+        )
 
 
 def normalize_index_name(name: str) -> str:
@@ -429,7 +706,12 @@ def aggregate(
             "aum_yi": round(sum(item["aum_yi"] for item in items), 4),
             "turnover_yi": round(sum(item["turnover_yi"] for item in items), 4),
             "estimated_flow_yi": round(flow, 4),
-            "flow_5d_yi": 0,
+            "net_subscription_1d_yi": round(sum(
+                item.get("net_subscription_1d_yi", 0) for item in items
+            ), 4),
+            "net_subscription_5d_yi": round(sum(
+                item.get("net_subscription_5d_yi", 0) for item in items
+            ), 4),
             "flow_strength": 0,
         })
     indices.sort(key=lambda item: item["estimated_flow_yi"], reverse=True)
@@ -445,6 +727,12 @@ def aggregate(
             "aum_yi": round(sum(item["aum_yi"] for item in items), 4),
             "turnover_yi": round(sum(item["turnover_yi"] for item in items), 4),
             "estimated_flow_yi": round(sum(item["estimated_flow_yi"] for item in items), 4),
+            "net_subscription_1d_yi": round(sum(
+                item.get("net_subscription_1d_yi", 0) for item in items
+            ), 4),
+            "net_subscription_5d_yi": round(sum(
+                item.get("net_subscription_5d_yi", 0) for item in items
+            ), 4),
             "bar_width": 0,
         })
     managers.sort(key=lambda item: item["estimated_flow_yi"], reverse=True)
@@ -473,7 +761,12 @@ def aggregate(
             "aum_yi": round(sum(item["aum_yi"] for item in items), 4),
             "turnover_yi": round(sum(item["turnover_yi"] for item in items), 4),
             "estimated_flow_yi": round(sum(item["estimated_flow_yi"] for item in items), 4),
-            "flow_5d_yi": round(sum(item["flow_5d_yi"] for item in items), 4),
+            "net_subscription_1d_yi": round(sum(
+                item.get("net_subscription_1d_yi", 0) for item in member_etfs
+            ), 4),
+            "net_subscription_5d_yi": round(sum(
+                item.get("net_subscription_5d_yi", 0) for item in member_etfs
+            ), 4),
             "exact_indices": [item["index_name"] for item in items],
             "review_required": any(item["theme_confidence"] != "高" for item in items),
             "flow_strength": 0,
@@ -485,32 +778,62 @@ def aggregate(
     return indices, managers, themes
 
 
-def update_history(metrics: dict[str, Any], generated_at: str) -> tuple[list[dict[str, Any]], str]:
+def update_history(
+    metrics: dict[str, Any], observed_at: str, append_snapshot: bool = True
+) -> tuple[list[dict[str, Any]], str]:
     history = load_json(HISTORY_FILE, [])
-    history.append({"observed_at": generated_at, **metrics})
+    if append_snapshot:
+        history.append({"observed_at": observed_at, **metrics})
     cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=366)
     kept = []
-    for item in history:
+    signature_fields = (
+        "etf_count", "turnover_yi", "estimated_flow_yi", "inflow_count",
+        "average_change_pct", "aum_yi",
+    )
+    prior_signature = None
+    seen_times = set()
+    for item in sorted(history, key=lambda value: value.get("observed_at", "")):
         try:
             observed = dt.datetime.fromisoformat(item["observed_at"].replace("Z", "+00:00"))
-            if observed >= cutoff:
-                kept.append(item)
+            if observed < cutoff or item["observed_at"] in seen_times:
+                continue
+            signature = tuple(item.get(field) for field in signature_fields)
+            # A cached fallback can be written under a later workflow time. Exact
+            # repetition across every market metric is treated as the same snapshot.
+            if signature == prior_signature:
+                continue
+            kept.append(item)
+            seen_times.add(item["observed_at"])
+            prior_signature = signature
         except (KeyError, ValueError):
             continue
+    maximum_coverage = max((int(item.get("etf_count") or 0) for item in kept), default=0)
+    if maximum_coverage >= 500:
+        minimum_coverage = maximum_coverage * 0.8
+        kept = [
+            item for item in kept
+            if int(item.get("etf_count") or 0) >= minimum_coverage
+        ]
     atomic_write(HISTORY_FILE, kept)
-    history_start = kept[0]["observed_at"][:10] if kept else generated_at[:10]
+    history_start = kept[0]["observed_at"][:10] if kept else observed_at[:10]
     return kept, history_start
 
 
 def main() -> None:
     generated_at = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
-    rows = fetch_universe()
+    previous_payload = load_json(DASHBOARD_FILE, {})
+    rows, public_quote_time, public_quote_fresh = fetch_universe(generated_at)
     source_parts = ["全量ETF列表/资金流估算"]
+    if not public_quote_fresh:
+        source_parts.append("公开行情沿用最近成功快照")
+    ifind_quote_fresh = False
+    access_token = ""
     refresh_token = os.environ.get("IFIND_REFRESH_TOKEN", "").strip()
     if refresh_token:
         try:
             access_token = get_ifind_access_token(refresh_token)
             if update_ifind_quotes(rows, access_token):
+                ifind_quote_fresh = True
                 source_parts.append("iFinD实时行情")
             else:
                 source_parts.append("iFinD已连接，实时字段待授权")
@@ -521,6 +844,29 @@ def main() -> None:
         source_parts.append("未配置iFinD")
 
     rows = enrich_metadata(rows)
+    subscription_market = previous_payload.get("daily_subscription_history") or []
+    subscription_by_etf = previous_payload.get("daily_subscription_by_etf") or {}
+    subscription_status = previous_payload.get("daily_subscription_status") or {
+        "available": False,
+        "message": "等待首次iFinD历史份额/净值回填",
+    }
+    if access_token:
+        try:
+            subscription_market, subscription_by_etf, subscription_status = (
+                fetch_ifind_subscription_history(rows, access_token, previous_payload)
+            )
+            source_parts.append("iFinD日度净申赎")
+        except Exception as exc:
+            message = str(exc)[:300]
+            print(f"iFinD daily subscription warning: {message}", file=sys.stderr)
+            subscription_status = {
+                **subscription_status,
+                "available": bool(subscription_market),
+                "message": message,
+                "last_attempt": generated_at,
+            }
+            source_parts.append("iFinD日度净申赎待确认权限")
+    attach_subscription_metrics(rows, subscription_by_etf)
     indices, managers, themes = aggregate(rows)
     metrics = {
         "etf_count": len(rows),
@@ -530,27 +876,49 @@ def main() -> None:
         "average_change_pct": round(sum(row["change_pct"] for row in rows) / max(1, len(rows)), 4),
         "aum_yi": round(sum(row["aum_yi"] for row in rows), 4),
     }
-    history, history_start = update_history(metrics, generated_at)
-    history_latest = history[-1]["observed_at"] if history else generated_at
+    market_quote_time = generated_at if ifind_quote_fresh else public_quote_time
+    history, intraday_history_start = update_history(
+        metrics, public_quote_time, append_snapshot=public_quote_fresh
+    )
+    subscription_latest_date = (
+        subscription_market[-1]["date"] if subscription_market else ""
+    )
+    subscription_latest_time = (
+        f"{subscription_latest_date}T15:00:00+08:00"
+        if subscription_latest_date else generated_at
+    )
+    history_start = (
+        subscription_market[0]["date"] if subscription_market else intraday_history_start
+    )
     snapshot_basis = "盘中行情快照；非交易时段显示最近一次成功更新"
     payload = {
-        "schema_version": 3,
+        "schema_version": 5,
         "generated_at": generated_at,
         "history_start": history_start,
         "source_label": " + ".join(source_parts),
         "as_of": {
-            "turnover": {"time": generated_at, "basis": "当日累计成交额"},
-            "intraday_flow": {"time": generated_at, "basis": "成交方向资金流估算"},
-            "price_change": {"time": generated_at, "basis": "ETF行情等权涨跌幅"},
-            "aum": {"time": generated_at, "basis": "行情总市值口径，非确认净资产"},
-            "trend": {"time": history_latest, "basis": "历史文件最新观测点"},
-            "flow_structure": {"time": generated_at, "basis": snapshot_basis},
-            "aggregation": {"time": generated_at, "basis": snapshot_basis},
-            "managers": {"time": generated_at, "basis": snapshot_basis},
-            "activity": {"time": generated_at, "basis": "当前资金流截面观察"},
-            "etf_detail": {"time": generated_at, "basis": snapshot_basis},
+            "turnover": {"time": market_quote_time, "basis": "当日累计成交额"},
+            "intraday_flow": {"time": public_quote_time, "basis": "成交方向资金流估算"},
+            "price_change": {"time": market_quote_time, "basis": "ETF行情等权涨跌幅"},
+            "aum": {"time": public_quote_time, "basis": "行情总市值口径，非确认净资产"},
+            "trend": {
+                "time": subscription_latest_time,
+                "basis": "iFinD ETF份额变化 × 当日单位净值",
+            },
+            "daily_flow": {
+                "time": subscription_latest_time,
+                "basis": "日终净申购赎回；与盘中估算分开",
+            },
+            "flow_structure": {"time": public_quote_time, "basis": snapshot_basis},
+            "aggregation": {"time": public_quote_time, "basis": snapshot_basis},
+            "managers": {"time": public_quote_time, "basis": snapshot_basis},
+            "activity": {"time": public_quote_time, "basis": "当前资金流截面观察"},
+            "etf_detail": {"time": public_quote_time, "basis": snapshot_basis},
         },
         "metrics": metrics,
+        "daily_subscription_history": subscription_market,
+        "daily_subscription_by_etf": subscription_by_etf,
+        "daily_subscription_status": subscription_status,
         "indices": indices,
         "themes": themes,
         "managers": managers,
