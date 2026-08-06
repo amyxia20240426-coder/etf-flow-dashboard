@@ -52,5 +52,14 @@
     "inflow_count": 72,
     "average_change_pct": 2.7804,
     "aum_yi": 24502.2269
+  },
+  {
+    "observed_at": "2026-08-06T02:46:28.974281Z",
+    "etf_count": 1560,
+    "turnover_yi": 1462.6114,
+    "estimated_flow_yi": -23.4062,
+    "inflow_count": 752,
+    "average_change_pct": 0.0115,
+    "aum_yi": 40999.5127
   }
 ]
