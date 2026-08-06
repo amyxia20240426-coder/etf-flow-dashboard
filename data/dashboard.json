@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "generated_at": "2026-08-06T03:47:08.027240Z",
+  "generated_at": "2026-08-06T05:10:06.467579Z",
   "history_start": "2026-08-03",
   "source_label": "全量ETF列表/资金流估算 + 公开行情沿用最近成功快照 + iFinD已连接，实时字段待授权 + iFinD日度净申赎待确认权限",
   "as_of": {
@@ -21,11 +21,11 @@
       "basis": "行情总市值口径，非确认净资产"
     },
     "trend": {
-      "time": "2026-08-06T03:47:08.027240Z",
+      "time": "2026-08-06T05:10:06.467579Z",
       "basis": "iFinD ETF份额变化 × 当日单位净值"
     },
     "daily_flow": {
-      "time": "2026-08-06T03:47:08.027240Z",
+      "time": "2026-08-06T05:10:06.467579Z",
       "basis": "日终净申购赎回；与盘中估算分开"
     },
     "flow_structure": {
@@ -61,8 +61,8 @@
   "daily_subscription_by_etf": {},
   "daily_subscription_status": {
     "available": false,
-    "message": "iFinD历史份额/净值接口返回：error happen with input parameters, please have a check.",
-    "last_attempt": "2026-08-06T03:47:08.027240Z"
+    "message": "iFinD指标 ths_share_fund 未找到可用参数格式（测试代码 510300.SH）：error happen with input parameters, please have a check.; error happen with input parameters, please have a check.; error happen with input parameters, please have a check.; error happen with input parameters, please have a check.",
+    "last_attempt": "2026-08-06T05:10:06.467579Z"
   },
   "indices": [
     {
