@@ -438,48 +438,65 @@ def fetch_ifind_subscription_history(
 ) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]], dict[str, Any]]:
     share_indicator = os.getenv("IFIND_ETF_SHARE_INDICATOR", "ths_share_fund").strip()
     nav_indicator = os.getenv("IFIND_ETF_NAV_INDICATOR", "ths_nav_fund").strip()
-    indicators = (share_indicator, nav_indicator)
     previous_market = previous.get("daily_subscription_history") or []
     previous_etf = previous.get("daily_subscription_by_etf") or {}
     today = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).date()
     start = today - dt.timedelta(days=366 if not previous_market else 14)
     day_count = max(1, (today - start).days + 1)
-    batch_size = max(5, min(80, 9000 // max(1, day_count * len(indicators))))
-    collected: list[dict[str, Any]] = []
+    batch_size = max(5, min(80, 9000 // max(1, day_count)))
     headers = {
         "access_token": access_token,
         "Content-Type": "application/json",
         "ifindlang": "cn",
     }
-    for offset in range(0, len(rows), batch_size):
-        codes = ",".join(item["code"] for item in rows[offset:offset + batch_size])
-        response = SESSION.post(
-            f"{IFIND_BASE}/date_sequence",
-            headers=headers,
-            json={
-                "codes": codes,
-                "startdate": start.strftime("%Y%m%d"),
-                "enddate": today.strftime("%Y%m%d"),
-                "functionpara": {"Days": "Tradedays", "Fill": "Blank", "Interval": "D"},
-                "indipara": [
-                    {"indicator": share_indicator},
-                    {"indicator": nav_indicator},
-                ],
-            },
-            timeout=(20, 90),
-        )
-        response.raise_for_status()
-        payload = response.json()
-        error = ifind_error(payload)
-        if error:
-            raise RuntimeError(f"iFinD历史份额/净值接口返回：{error}")
-        batch_rows = parse_ifind_date_sequence(payload, indicators)
-        if not batch_rows:
-            raise RuntimeError(
-                f"iFinD未返回可解析的ETF历史份额；请确认指标 {share_indicator} / {nav_indicator} 权限"
+    probe_code = next(
+        (item["code"] for item in rows if item["code"] == "510300.SH"),
+        rows[0]["code"],
+    )
+    probe_start = today - dt.timedelta(days=45)
+    share_params, share_function = probe_ifind_date_indicator(
+        access_token, probe_code, share_indicator, probe_start, today
+    )
+    nav_params, nav_function = probe_ifind_date_indicator(
+        access_token, probe_code, nav_indicator, probe_start, today
+    )
+    collected_map: dict[tuple[str, str], dict[str, Any]] = {}
+    for indicator, value_name, params, functionpara in (
+        (share_indicator, "share", share_params, share_function),
+        (nav_indicator, "nav", nav_params, nav_function),
+    ):
+        for offset in range(0, len(rows), batch_size):
+            codes = ",".join(item["code"] for item in rows[offset:offset + batch_size])
+            response = SESSION.post(
+                f"{IFIND_BASE}/date_sequence",
+                headers=headers,
+                json={
+                    "codes": codes,
+                    "startdate": start.strftime("%Y%m%d"),
+                    "enddate": today.strftime("%Y%m%d"),
+                    "functionpara": functionpara,
+                    "indipara": [indicator_request(indicator, params)],
+                },
+                timeout=(20, 90),
             )
-        collected.extend(batch_rows)
-        time.sleep(0.15)
+            response.raise_for_status()
+            payload = response.json()
+            error = ifind_error(payload)
+            if error:
+                raise RuntimeError(f"iFinD历史指标 {indicator} 返回：{error}")
+            # Treat the requested single indicator as the parser's share column,
+            # then merge share and NAV on code/date.
+            batch_rows = parse_ifind_date_sequence(payload, (indicator, "__unused__"))
+            if not batch_rows:
+                raise RuntimeError(f"iFinD历史指标 {indicator} 返回成功但没有可解析数据")
+            for item in batch_rows:
+                key = (item["code"], item["date"])
+                target = collected_map.setdefault(key, {
+                    "code": item["code"], "date": item["date"], "share": 0.0, "nav": 0.0,
+                })
+                target[value_name] = item["share"]
+            time.sleep(0.15)
+    collected = list(collected_map.values())
     new_market, new_etf = calculate_subscription_flows(collected, rows)
     if not previous_market and len(new_market) < 60:
         raise RuntimeError(
@@ -513,6 +530,80 @@ def attach_subscription_metrics(
         row["net_subscription_5d_yi"] = round(
             sum(item["net_subscription_yi"] for item in history[-5:]), 4
         )
+
+
+def payload_has_indicator_values(payload: Any, indicator: str) -> bool:
+    if isinstance(payload, list):
+        return any(payload_has_indicator_values(item, indicator) for item in payload)
+    if not isinstance(payload, dict):
+        return False
+    if indicator in payload:
+        value = payload[indicator]
+        if isinstance(value, list):
+            return any(item not in (None, "", "-", "--") for item in value)
+        return value not in (None, "", "-", "--")
+    return any(payload_has_indicator_values(value, indicator) for value in payload.values())
+
+
+def indicator_request(indicator: str, params: list[str] | None) -> dict[str, Any]:
+    item: dict[str, Any] = {"indicator": indicator}
+    if params is not None:
+        item["indiparams"] = params
+    return item
+
+
+def probe_ifind_date_indicator(
+    access_token: str, code: str, indicator: str, start: dt.date, end: dt.date
+) -> tuple[list[str] | None, dict[str, str]]:
+    headers = {
+        "access_token": access_token,
+        "Content-Type": "application/json",
+        "ifindlang": "cn",
+    }
+    parameter_variants: list[list[str] | None] = [
+        None, [""], ["100"], ["", "100"], ["", "", ""], ["", "100", ""],
+    ]
+    function_variants = [
+        {"Days": "Tradedays", "Fill": "Blank"},
+        {"Days": "Tradedays", "Fill": "Blank", "Interval": "D"},
+        {"Days": "Tradedays", "Fill": "Omit"},
+    ]
+    errors = []
+    for functionpara in function_variants:
+        for params in parameter_variants:
+            response = SESSION.post(
+                f"{IFIND_BASE}/date_sequence",
+                headers=headers,
+                json={
+                    "codes": code,
+                    "startdate": start.strftime("%Y%m%d"),
+                    "enddate": end.strftime("%Y%m%d"),
+                    "functionpara": functionpara,
+                    "indipara": [indicator_request(indicator, params)],
+                },
+                timeout=(20, 60),
+            )
+            if not response.ok:
+                errors.append(f"HTTP {response.status_code}")
+                continue
+            try:
+                payload = response.json()
+            except ValueError:
+                errors.append("响应不是JSON")
+                continue
+            error = ifind_error(payload)
+            if not error and payload_has_indicator_values(payload, indicator):
+                print(
+                    f"iFinD indicator probe succeeded: {indicator}; "
+                    f"params={params!r}; functionpara={functionpara}"
+                )
+                return params, functionpara
+            errors.append(error or "返回中无该指标数据")
+            time.sleep(0.08)
+    detail = "; ".join(errors[-4:])
+    raise RuntimeError(
+        f"iFinD指标 {indicator} 未找到可用参数格式（测试代码 {code}）：{detail}"
+    )
 
 
 def normalize_index_name(name: str) -> str:
