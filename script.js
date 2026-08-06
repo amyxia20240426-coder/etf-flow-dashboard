@@ -20,6 +20,56 @@ const signed = (value, suffix = " 亿") => {
 
 const colorClass = value => Number(value || 0) >= 0 ? "up" : "down";
 
+const formatBeijing = value => {
+  if (!value) return "未知";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date).replaceAll("/", "-");
+};
+
+const shortTime = value => {
+  if (!value) return "--:--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--:--";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
+};
+
+const isStale = value => {
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && Date.now() - date.getTime() > 18 * 60 * 60 * 1000;
+};
+
+function asOfInfo(key, fallbackBasis = "最近一次成功更新") {
+  const entry = dashboardData?.as_of?.[key] || {};
+  const time = entry.time || dashboardData?.generated_at;
+  return {
+    time,
+    stale: isStale(time),
+    text: `截至 ${formatBeijing(time)}（北京时间） · ${entry.basis || fallbackBasis}`
+  };
+}
+
+function setAsOf(elementId, key, fallbackBasis) {
+  const node = document.querySelector(`#${elementId}`);
+  if (!node) return;
+  const info = asOfInfo(key, fallbackBasis);
+  node.textContent = info.text;
+  node.classList.toggle("stale", info.stale);
+}
+
 function bindSearch() {
   rows = [...document.querySelectorAll("#rows tr")];
 }
@@ -64,6 +114,54 @@ function renderAggregation() {
     ? `共 ${items.length} 个主题族群 · ${indexCount} 个原指数 · ${etfCount.toLocaleString("zh-CN")} 只 ETF <span>主题归类保留原指数明细</span>`
     : `共 ${indexCount} 个原指数 · ${etfCount.toLocaleString("zh-CN")} 只 ETF <span>精确指数层不做相似性合并</span>`;
   rows = [...document.querySelectorAll("#rows tr")];
+}
+
+function flowBucket(item) {
+  const name = `${item.index_name || ""} ${item.theme_family || ""}`.toLowerCase();
+  if (item.market_scope === "跨境") return "跨境产品";
+  if ((item.theme_level1 || "").includes("宽基")) return "宽基指数";
+  if (/黄金9999|商品|原油|豆粕|有色期货/.test(name)) return "商品ETF";
+  if (/债|货币|现金|同业存单|利率/.test(name)) return "债券及现金ETF";
+  return "行业与策略主题";
+}
+
+function renderFlowStructure() {
+  const order = ["宽基指数", "行业与策略主题", "跨境产品", "债券及现金ETF", "商品ETF"];
+  const totals = Object.fromEntries(order.map(name => [name, 0]));
+  (dashboardData?.indices || []).forEach(item => {
+    totals[flowBucket(item)] += Number(item.estimated_flow_yi || 0);
+  });
+  const maxAbs = Math.max(1, ...Object.values(totals).map(value => Math.abs(value)));
+  const list = document.querySelector("#flow-structure-list");
+  if (list) {
+    list.innerHTML = order.map(name => {
+      const value = totals[name];
+      const width = Math.max(2, Math.abs(value) / maxAbs * 100);
+      const barColor = value >= 0 ? "#dc4040" : "#15966e";
+      return `<div><span>${name} <b class="${colorClass(value)}">${signed(value, "亿元")}</b></span><i style="--w:${width.toFixed(1)}%;--bar-color:${barColor}"></i></div>`;
+    }).join("");
+  }
+  const total = Number(dashboardData?.metrics?.estimated_flow_yi || 0);
+  const totalNode = document.querySelector("#flow-structure-total");
+  if (totalNode) {
+    totalNode.textContent = signed(total);
+    totalNode.className = colorClass(total);
+  }
+}
+
+function renderActivity() {
+  const items = [...(dashboardData?.themes || [])]
+    .sort((a, b) => Math.abs(Number(b.estimated_flow_yi || 0)) - Math.abs(Number(a.estimated_flow_yi || 0)))
+    .slice(0, 3);
+  const info = asOfInfo("activity", "当前资金流截面观察");
+  const list = document.querySelector("#activity-list");
+  if (!list) return;
+  list.innerHTML = items.map(item => `
+    <div>
+      <time>${shortTime(info.time)}</time>
+      <span><strong>${item.theme_family || "未分类主题"}</strong><small>${item.etf_count || 0} 只ETF · ${item.index_count || 0} 个原指数 · 当前截面</small></span>
+      <em class="${colorClass(item.estimated_flow_yi)}">${signed(item.estimated_flow_yi)}</em>
+    </div>`).join("") || `<div><span><strong>尚无动态主题数据</strong><small>运行更新任务后生成</small></span></div>`;
 }
 
 function dailyHistory(raw) {
@@ -149,7 +247,21 @@ function renderDashboard(data) {
   document.querySelector("#metric-aum").innerHTML = `${number((metrics.aum_yi || 0) / 10000, 2)}<small>万亿元</small>`;
   document.querySelector("#metric-source").textContent = data.source_label || "自动采集";
 
+  setAsOf("asof-turnover", "turnover", "当日累计成交额");
+  setAsOf("asof-flow", "intraday_flow", "成交方向资金流估算");
+  setAsOf("asof-change", "price_change", "ETF行情等权涨跌幅");
+  setAsOf("asof-aum", "aum", "行情总市值口径");
+  setAsOf("asof-trend", "trend", "历史文件最新观测点");
+  setAsOf("asof-flow-structure", "flow_structure", "盘中行情快照");
+  setAsOf("asof-aggregation", "aggregation", "盘中行情快照");
+  setAsOf("asof-activity", "activity", "当前资金流截面观察");
+  const headerInfo = asOfInfo("intraday_flow", "最近一次成功更新");
+  const headerNode = document.querySelector("#header-asof");
+  if (headerNode) headerNode.textContent = `最近行情 ${formatBeijing(headerInfo.time)}（北京时间）`;
+
   renderAggregation();
+  renderFlowStructure();
+  renderActivity();
 
   const managers = (data.managers || []).slice(0, 12).map((item, index) => `
     <div>
@@ -159,15 +271,16 @@ function renderDashboard(data) {
       <em class="${colorClass(item.estimated_flow_yi)}">${signed(item.estimated_flow_yi)}</em>
     </div>`).join("");
   if (managers) {
+    const managerInfo = asOfInfo("managers", "盘中行情快照");
     document.querySelector("#manager-list").innerHTML =
-      `<div class="panel-head"><div><h3>管理人资金流竞争</h3><small>今日全产品合计</small></div></div>${managers}`;
+      `<div class="panel-head"><div><h3>管理人资金流竞争</h3><small id="asof-managers" class="section-asof ${managerInfo.stale ? "stale" : ""}">${managerInfo.text}</small><small>今日全产品合计</small></div></div>${managers}`;
   }
 
   const generated = data.generated_at
     ? new Date(data.generated_at).toLocaleString("zh-CN", { hour12: false })
     : "未知";
   document.querySelector("#data-status").textContent =
-    `数据范围：沪深上市 ETF · 更新时间：${generated} · 数据源：${data.source_label || "自动采集"} · 历史起点：${data.history_start || "首次运行后生成"}`;
+    `数据范围：沪深上市 ETF · 页面数据文件生成：${generated} · 各板块实际截至时间见板块标题 · 数据源：${data.source_label || "自动采集"} · 历史起点：${data.history_start || "首次运行后生成"}`;
   bindSearch();
 }
 

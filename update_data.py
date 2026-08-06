@@ -530,12 +530,26 @@ def main() -> None:
         "average_change_pct": round(sum(row["change_pct"] for row in rows) / max(1, len(rows)), 4),
         "aum_yi": round(sum(row["aum_yi"] for row in rows), 4),
     }
-    _, history_start = update_history(metrics, generated_at)
+    history, history_start = update_history(metrics, generated_at)
+    history_latest = history[-1]["observed_at"] if history else generated_at
+    snapshot_basis = "盘中行情快照；非交易时段显示最近一次成功更新"
     payload = {
-        "schema_version": 1,
+        "schema_version": 3,
         "generated_at": generated_at,
         "history_start": history_start,
         "source_label": " + ".join(source_parts),
+        "as_of": {
+            "turnover": {"time": generated_at, "basis": "当日累计成交额"},
+            "intraday_flow": {"time": generated_at, "basis": "成交方向资金流估算"},
+            "price_change": {"time": generated_at, "basis": "ETF行情等权涨跌幅"},
+            "aum": {"time": generated_at, "basis": "行情总市值口径，非确认净资产"},
+            "trend": {"time": history_latest, "basis": "历史文件最新观测点"},
+            "flow_structure": {"time": generated_at, "basis": snapshot_basis},
+            "aggregation": {"time": generated_at, "basis": snapshot_basis},
+            "managers": {"time": generated_at, "basis": snapshot_basis},
+            "activity": {"time": generated_at, "basis": "当前资金流截面观察"},
+            "etf_detail": {"time": generated_at, "basis": snapshot_basis},
+        },
         "metrics": metrics,
         "indices": indices,
         "themes": themes,

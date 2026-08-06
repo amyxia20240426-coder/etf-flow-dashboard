@@ -25,21 +25,21 @@
       <header>
         <div><small>沪深两市 · 全市场 ETF</small><h1>市场总览</h1></div>
         <label class="search">⌕ <input id="search" placeholder="搜索指数、ETF代码"></label>
-        <div class="sync"><i></i><div><b>盘中数据</b><small>更新于 14:30 · 30分钟刷新</small></div></div>
+        <div class="sync"><i></i><div><b>数据状态</b><small id="header-asof">正在读取各板块时间</small></div></div>
       </header>
       <div class="notice"><b>i</b><span><strong>口径提示：</strong>盘中资金流为成交方向估算；基金份额 × NAV 的确认净申赎于下一交易日更新。两种口径分开显示，不混加。</span></div>
 
       <div class="content">
         <section class="metrics">
-          <article><label>今日总成交额</label><h2 id="metric-turnover">1,482.6<small>亿元</small></h2><footer><em id="metric-count">共 1,042 只</em><span class="spark">▁▂▃▂▄▅▆</span></footer></article>
-          <article class="featured"><label>盘中资金净流入 <small>估算</small></label><h2 class="up" id="metric-flow">+72.3<small>亿元</small></h2><footer><span id="metric-inflow-count">净流入 346 只</span><span class="spark">▁▂▂▄▅▆▇</span></footer></article>
-          <article><label>平均涨跌幅 <small>盘中</small></label><h2 class="up" id="metric-change">+0.42<small>%</small></h2><footer><span>按全市场 ETF 等权</span><span class="spark">▁▂▃▃▄▆▇</span></footer></article>
-          <article><label>全市场 ETF 规模</label><h2 id="metric-aum">4.26<small>万亿元</small></h2><footer><em id="metric-source">等待自动更新</em><span class="spark blue">▁▂▂▃▄▅▆</span></footer></article>
+          <article><label>今日总成交额</label><small class="card-asof" id="asof-turnover">截至时间：读取中</small><h2 id="metric-turnover">1,482.6<small>亿元</small></h2><footer><em id="metric-count">共 1,042 只</em><span class="spark">▁▂▃▂▄▅▆</span></footer></article>
+          <article class="featured"><label>盘中资金净流入 <small>估算</small></label><small class="card-asof" id="asof-flow">截至时间：读取中</small><h2 class="up" id="metric-flow">+72.3<small>亿元</small></h2><footer><span id="metric-inflow-count">净流入 346 只</span><span class="spark">▁▂▂▄▅▆▇</span></footer></article>
+          <article><label>平均涨跌幅 <small>盘中</small></label><small class="card-asof" id="asof-change">截至时间：读取中</small><h2 class="up" id="metric-change">+0.42<small>%</small></h2><footer><span>按全市场 ETF 等权</span><span class="spark">▁▂▃▃▄▆▇</span></footer></article>
+          <article><label>全市场 ETF 规模</label><small class="card-asof" id="asof-aum">截至时间：读取中</small><h2 id="metric-aum">4.26<small>万亿元</small></h2><footer><em id="metric-source">等待自动更新</em><span class="spark blue">▁▂▂▃▄▅▆</span></footer></article>
         </section>
 
         <section class="top-grid">
           <article class="panel chart-card">
-            <div class="panel-head"><div><h3>全市场资金流趋势</h3><small id="trend-coverage">正在读取历史覆盖范围</small></div><div class="period"><button data-days="30">近1月</button><button data-days="90">近3月</button><button class="on" data-days="365">近1年</button></div></div>
+            <div class="panel-head"><div><h3>全市场资金流趋势</h3><small id="asof-trend" class="section-asof">截至时间：读取中</small><small id="trend-coverage">正在读取历史覆盖范围</small></div><div class="period"><button data-days="30">近1月</button><button data-days="90">近3月</button><button class="on" data-days="365">近1年</button></div></div>
             <h2 class="up" id="trend-total">-- <small>区间累计净流入</small></h2>
             <svg id="trend-chart" viewBox="0 0 760 240" preserveAspectRatio="none" aria-label="累计净流入趋势">
               <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#df4141" stop-opacity=".22"/><stop offset="1" stop-color="#df4141" stop-opacity="0"/></linearGradient></defs>
@@ -49,18 +49,14 @@
             </svg>
           </article>
           <article class="panel flow">
-            <div class="panel-head"><div><h3>今日流向结构</h3><small>按资产类别聚合</small></div></div>
-            <div data-flow="88"><span>宽基指数 <b class="up">+48.6亿元</b></span><i></i></div>
-            <div data-flow="54"><span>行业主题 <b class="up">+19.8亿元</b></span><i></i></div>
-            <div data-flow="36"><span>跨境产品 <b class="up">+8.7亿元</b></span><i></i></div>
-            <div data-flow="24"><span>债券ETF <b class="up">+4.1亿元</b></span><i></i></div>
-            <div data-flow="-32"><span>商品ETF <b class="down">−8.9亿元</b></span><i></i></div>
-            <footer><span>净流入合计</span><strong class="up">+72.3 亿元</strong></footer>
+            <div class="panel-head"><div><h3>今日流向结构</h3><small id="asof-flow-structure" class="section-asof">截至时间：读取中</small><small>按资产类别聚合</small></div></div>
+            <div id="flow-structure-list"></div>
+            <footer><span>净流入合计</span><strong id="flow-structure-total">--</strong></footer>
           </article>
         </section>
 
         <section class="panel table-card">
-          <div class="panel-head"><div><h3 id="aggregation-title">相似投向 ETF 主题聚合</h3><small id="aggregation-note">跨管理人、跨相近指数合并 · 可切回精确指数查看</small></div><div class="tabs" id="aggregation-tabs"><button class="on" data-view="themes">主题族群</button><button data-view="indices">精确指数</button></div></div>
+          <div class="panel-head"><div><h3 id="aggregation-title">相似投向 ETF 主题聚合</h3><small id="asof-aggregation" class="section-asof">截至时间：读取中</small><small id="aggregation-note">跨管理人、跨相近指数合并 · 可切回精确指数查看</small></div><div class="tabs" id="aggregation-tabs"><button class="on" data-view="themes">主题族群</button><button data-view="indices">精确指数</button></div></div>
           <div class="scroll">
             <table>
               <thead><tr><th>排名</th><th id="group-column-title">主题族群</th><th>ETF / 管理人</th><th>合计规模</th><th>今日成交额</th><th>今日资金流</th><th>近5日资金流</th><th>流入强度</th></tr></thead>
@@ -78,16 +74,14 @@
         </section>
 
         <section class="bottom-grid">
-          <article class="panel managers" id="manager-list"><div class="panel-head"><div><h3>管理人资金流竞争</h3><small>今日全产品合计</small></div></div>
+          <article class="panel managers" id="manager-list"><div class="panel-head"><div><h3>管理人资金流竞争</h3><small id="asof-managers" class="section-asof">截至时间：读取中</small><small>今日全产品合计</small></div></div>
             <div><b>1</b><span><strong>华夏基金</strong><small>93 只 ETF · 规模 6,432 亿</small></span><i style="--w:100%"></i><em>+25.6 亿</em></div>
             <div><b>2</b><span><strong>易方达基金</strong><small>91 只 ETF · 规模 5,918 亿</small></span><i style="--w:82%"></i><em>+18.3 亿</em></div>
             <div><b>3</b><span><strong>华泰柏瑞基金</strong><small>48 只 ETF · 规模 4,326 亿</small></span><i style="--w:63%"></i><em>+12.7 亿</em></div>
             <div><b>4</b><span><strong>南方基金</strong><small>72 只 ETF · 规模 3,868 亿</small></span><i style="--w:49%"></i><em>+8.6 亿</em></div>
           </article>
-          <article class="panel activity"><div class="panel-head"><div><h3>资金异动</h3><small>近 30 分钟</small></div><b class="live">● LIVE</b></div>
-            <div><time>14:26</time><span><strong>中证A500 ETF 合计流入加速</strong><small>华夏、国泰领涨</small></span><em>+4.8 亿</em></div>
-            <div><time>14:11</time><span><strong>证券公司指数由流入转流出</strong><small>6 只产品同步回落</small></span><em class="down">−2.1 亿</em></div>
-            <div><time>13:48</time><span><strong>科创50 ETF 成交显著放量</strong><small>成交额环比 +42%</small></span><em>+3.6 亿</em></div>
+          <article class="panel activity"><div class="panel-head"><div><h3>资金流异动观察</h3><small id="asof-activity" class="section-asof">截至时间：读取中</small><small>当前截面绝对资金流较大的主题</small></div><b class="live">● SNAPSHOT</b></div>
+            <div id="activity-list"></div>
           </article>
         </section>
         <div class="footnote" id="data-status">数据范围：上海证券交易所、深圳证券交易所上市 ETF · 正在等待首次自动更新</div>
