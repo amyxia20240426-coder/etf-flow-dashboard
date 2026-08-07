@@ -38,6 +38,7 @@ jobs:
         env:
           IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
           FULL_METADATA_REFRESH: ${{ github.event.inputs.full_metadata_refresh || 'false' }}
+          UPDATE_MODE: intraday
         run: python update_data.py
 
       - name: Commit changed data
