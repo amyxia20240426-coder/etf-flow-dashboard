@@ -14,7 +14,8 @@ on:
         required: false
         default: "true"
   schedule:
-    - cron: "*/30 1-7 * * 1-5"
+    # Avoid GitHub's busiest scheduling minutes; Beijing 09:07–15:37.
+    - cron: "7,37 1-7 * * 1-5"
 
 permissions:
   contents: write
