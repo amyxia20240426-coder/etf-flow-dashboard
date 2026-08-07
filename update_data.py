@@ -33,9 +33,9 @@ HISTORY_FILE = DATA_DIR / "market_history.json"
 
 IFIND_BASE = "https://quantapi.51ifind.com/api/v1"
 EASTMONEY_LIST_HOSTS = [
-    "https://push2.eastmoney.com/api/qt/clist/get",
     "https://82.push2.eastmoney.com/api/qt/clist/get",
     "https://33.push2.eastmoney.com/api/qt/clist/get",
+    "https://push2.eastmoney.com/api/qt/clist/get",
     "https://28.push2.eastmoney.com/api/qt/clist/get",
 ]
 
@@ -100,7 +100,7 @@ def exchange_code(code: str) -> str:
 def fetch_universe(observed_at: str) -> tuple[list[dict[str, Any]], str, bool]:
     base_params = {
         "pn": 1,
-        "pz": 100,
+        "pz": 200,
         "po": 1,
         "np": 1,
         "fltt": 2,
