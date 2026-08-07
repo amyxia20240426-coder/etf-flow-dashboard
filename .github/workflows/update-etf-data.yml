@@ -1,6 +1,12 @@
 name: Update ETF data
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "update_data.py"
+      - "requirements.txt"
+      - ".github/workflows/update-etf-data.yml"
   workflow_dispatch:
     inputs:
       full_metadata_refresh:
