@@ -913,25 +913,58 @@ def update_history(
 def main() -> None:
     generated_at = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
     previous_payload = load_json(DASHBOARD_FILE, {})
-    rows, public_quote_time, public_quote_fresh = fetch_universe(generated_at)
+    update_mode = os.environ.get("UPDATE_MODE", "full").strip().lower()
+    if update_mode not in {"intraday", "daily", "full"}:
+        raise RuntimeError(f"Unsupported UPDATE_MODE: {update_mode}")
+
+    # The daily job must not stamp an evening workflow time onto intraday data.
+    # It reuses the last market snapshot and only refreshes confirmed daily flows.
+    if update_mode == "daily" and previous_payload.get("etfs"):
+        rows = [dict(item) for item in previous_payload["etfs"]]
+        public_quote_time = str(
+            (((previous_payload.get("as_of") or {}).get("intraday_flow") or {}).get("time"))
+            or previous_payload.get("generated_at")
+            or generated_at
+        )
+        public_quote_fresh = False
+    else:
+        rows, public_quote_time, public_quote_fresh = fetch_universe(generated_at)
     source_parts = ["全量ETF列表/资金流估算"]
-    if not public_quote_fresh:
+    if update_mode == "daily":
+        source_parts.append("盘中行情沿用最近成功快照")
+    elif not public_quote_fresh:
         source_parts.append("公开行情沿用最近成功快照")
     ifind_quote_fresh = False
     access_token = ""
+    quote_message = "公开行情已刷新" if public_quote_fresh else "沿用最近一次成功行情"
     refresh_token = os.environ.get("IFIND_REFRESH_TOKEN", "").strip()
     if refresh_token:
         try:
             access_token = get_ifind_access_token(refresh_token)
-            if update_ifind_quotes(rows, access_token):
+            if update_mode in {"intraday", "full"} and update_ifind_quotes(rows, access_token):
                 ifind_quote_fresh = True
+                quote_message = "iFinD实时行情已刷新"
                 source_parts.append("iFinD实时行情")
+            elif update_mode == "daily":
+                source_parts.append("iFinD日终任务")
             else:
+                quote_message = (
+                    "iFinD实时字段未返回可用值；"
+                    + ("公开行情已刷新" if public_quote_fresh else "沿用最近成功行情")
+                )
                 source_parts.append("iFinD已连接，实时字段待授权")
         except Exception as exc:
             print(f"iFinD warning: {exc}", file=sys.stderr)
+            quote_message = (
+                f"iFinD连接失败；"
+                + ("公开行情已刷新" if public_quote_fresh else "沿用最近成功行情")
+            )
             source_parts.append("iFinD连接失败，保留公开行情")
     else:
+        quote_message = (
+            "未配置iFinD；"
+            + ("公开行情已刷新" if public_quote_fresh else "沿用最近成功行情")
+        )
         source_parts.append("未配置iFinD")
 
     rows = enrich_metadata(rows)
@@ -941,11 +974,20 @@ def main() -> None:
         "available": False,
         "message": "等待首次iFinD历史份额/净值回填",
     }
-    if access_token:
+    daily_attempted = update_mode in {"daily", "full"}
+    daily_succeeded = False
+    if access_token and daily_attempted:
         try:
             subscription_market, subscription_by_etf, subscription_status = (
                 fetch_ifind_subscription_history(rows, access_token, previous_payload)
             )
+            subscription_status = {
+                **subscription_status,
+                "message": "iFinD日度净申赎更新成功",
+                "last_attempt": generated_at,
+                "last_success": generated_at,
+            }
+            daily_succeeded = True
             source_parts.append("iFinD日度净申赎")
         except Exception as exc:
             message = str(exc)[:300]
@@ -957,6 +999,15 @@ def main() -> None:
                 "last_attempt": generated_at,
             }
             source_parts.append("iFinD日度净申赎待确认权限")
+    elif daily_attempted:
+        subscription_status = {
+            **subscription_status,
+            "available": bool(subscription_market),
+            "message": "日终任务未配置iFinD Token，沿用已有历史数据",
+            "last_attempt": generated_at,
+        }
+    else:
+        source_parts.append("日度净申赎沿用最近日终数据")
     attach_subscription_metrics(rows, subscription_by_etf)
     indices, managers, themes = aggregate(rows)
     metrics = {
@@ -982,29 +1033,65 @@ def main() -> None:
         subscription_market[0]["date"] if subscription_market else intraday_history_start
     )
     snapshot_basis = "盘中行情快照；非交易时段显示最近一次成功更新"
+    previous_update_status = previous_payload.get("update_status") or {}
+    daily_update_status = previous_update_status.get("daily") or {}
+    if daily_attempted:
+        daily_update_status = {
+            "success": daily_succeeded,
+            "attempted_at": generated_at,
+            "data_time": subscription_latest_time if subscription_market else "",
+            "message": subscription_status.get("message") or "日度任务已完成",
+        }
+    if daily_attempted:
+        daily_asof_status = (
+            "success" if daily_succeeded else ("cached" if subscription_market else "error")
+        )
+    else:
+        daily_asof_status = (
+            "success"
+            if subscription_market and daily_update_status.get("success")
+            else ("cached" if subscription_market else "error")
+        )
+    intraday_fresh = bool(public_quote_fresh or ifind_quote_fresh)
+    intraday_status = {
+        "success": intraday_fresh,
+        "attempted_at": generated_at,
+        "data_time": market_quote_time,
+        "message": quote_message,
+    }
+    if update_mode == "daily" and previous_update_status.get("intraday"):
+        intraday_status = previous_update_status["intraday"]
     payload = {
-        "schema_version": 5,
+        "schema_version": 6,
         "generated_at": generated_at,
+        "update_mode": update_mode,
+        "update_status": {
+            "last_job": {"mode": update_mode, "completed_at": generated_at},
+            "intraday": intraday_status,
+            "daily": daily_update_status,
+        },
         "history_start": history_start,
         "source_label": " + ".join(source_parts),
         "as_of": {
-            "turnover": {"time": market_quote_time, "basis": "当日累计成交额"},
-            "intraday_flow": {"time": public_quote_time, "basis": "成交方向资金流估算"},
-            "price_change": {"time": market_quote_time, "basis": "ETF行情等权涨跌幅"},
-            "aum": {"time": public_quote_time, "basis": "行情总市值口径，非确认净资产"},
+            "turnover": {"time": market_quote_time, "basis": "当日累计成交额", "status": "success" if intraday_fresh else "cached"},
+            "intraday_flow": {"time": market_quote_time, "basis": "成交方向资金流估算", "status": "success" if intraday_fresh else "cached"},
+            "price_change": {"time": market_quote_time, "basis": "ETF行情等权涨跌幅", "status": "success" if intraday_fresh else "cached"},
+            "aum": {"time": market_quote_time, "basis": "行情总市值口径，非确认净资产", "status": "success" if intraday_fresh else "cached"},
             "trend": {
                 "time": subscription_latest_time,
                 "basis": "iFinD ETF份额变化 × 当日单位净值",
+                "status": daily_asof_status,
             },
             "daily_flow": {
                 "time": subscription_latest_time,
                 "basis": "日终净申购赎回；与盘中估算分开",
+                "status": daily_asof_status,
             },
-            "flow_structure": {"time": public_quote_time, "basis": snapshot_basis},
-            "aggregation": {"time": public_quote_time, "basis": snapshot_basis},
-            "managers": {"time": public_quote_time, "basis": snapshot_basis},
-            "activity": {"time": public_quote_time, "basis": "当前资金流截面观察"},
-            "etf_detail": {"time": public_quote_time, "basis": snapshot_basis},
+            "flow_structure": {"time": market_quote_time, "basis": snapshot_basis, "status": "success" if intraday_fresh else "cached"},
+            "aggregation": {"time": market_quote_time, "basis": snapshot_basis, "status": "success" if intraday_fresh else "cached"},
+            "managers": {"time": market_quote_time, "basis": snapshot_basis, "status": "success" if intraday_fresh else "cached"},
+            "activity": {"time": market_quote_time, "basis": "当前资金流截面观察", "status": "success" if intraday_fresh else "cached"},
+            "etf_detail": {"time": market_quote_time, "basis": snapshot_basis, "status": "success" if intraday_fresh else "cached"},
         },
         "metrics": metrics,
         "daily_subscription_history": subscription_market,
