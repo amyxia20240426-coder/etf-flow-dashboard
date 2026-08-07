@@ -335,9 +335,13 @@ function renderDashboard(data) {
   setAsOf("asof-flow-structure", "flow_structure", "盘中行情快照");
   setAsOf("asof-aggregation", "aggregation", "盘中行情快照");
   setAsOf("asof-activity", "activity", "当前资金流截面观察");
-  const headerInfo = asOfInfo("intraday_flow", "最近一次成功更新");
+  const quoteInfo = asOfInfo("turnover", "最近一次成功行情");
+  const flowInfo = asOfInfo("intraday_flow", "最近一次成功资金流");
   const headerNode = document.querySelector("#header-asof");
-  if (headerNode) headerNode.textContent = `最近行情 ${formatBeijing(headerInfo.time)}（北京时间）`;
+  if (headerNode) {
+    headerNode.textContent =
+      `实时行情 ${formatBeijing(quoteInfo.time)} · 资金流 ${formatBeijing(flowInfo.time)}（北京时间）`;
+  }
 
   renderAggregation();
   renderFlowStructure();
