@@ -22,7 +22,7 @@ permissions:
 
 concurrency:
   group: etf-data-update
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   update:
