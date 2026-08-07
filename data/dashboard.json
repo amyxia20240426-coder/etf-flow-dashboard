@@ -1,22 +1,22 @@
 {
   "schema_version": 6,
-  "generated_at": "2026-08-07T05:35:58.364252Z",
+  "generated_at": "2026-08-07T06:40:22.346862Z",
   "update_mode": "intraday",
   "update_status": {
     "last_job": {
       "mode": "intraday",
-      "completed_at": "2026-08-07T05:35:58.364252Z"
+      "completed_at": "2026-08-07T06:40:22.346862Z"
     },
     "intraday": {
       "success": false,
-      "attempted_at": "2026-08-07T05:35:58.364252Z",
+      "attempted_at": "2026-08-07T06:40:22.346862Z",
       "data_time": "2026-08-07T01:38:30.615343Z",
-      "message": "iFinD实时字段未返回可用值；沿用最近成功行情"
+      "message": "沿用最近一次成功行情"
     },
     "daily": {}
   },
   "history_start": "2026-08-03",
-  "source_label": "全量ETF列表/资金流估算 + 公开行情沿用最近成功快照 + iFinD已连接，实时字段待授权 + 日度净申赎沿用最近日终数据",
+  "source_label": "全量ETF列表/资金流估算 + 公开行情沿用最近成功快照 + 盘中使用公开行情；iFinD实时探测已停用 + 日度净申赎沿用最近日终数据",
   "as_of": {
     "turnover": {
       "time": "2026-08-07T01:38:30.615343Z",
@@ -39,12 +39,12 @@
       "status": "cached"
     },
     "trend": {
-      "time": "2026-08-07T05:35:58.364252Z",
+      "time": "2026-08-07T06:40:22.346862Z",
       "basis": "iFinD ETF份额变化 × 当日单位净值",
       "status": "error"
     },
     "daily_flow": {
-      "time": "2026-08-07T05:35:58.364252Z",
+      "time": "2026-08-07T06:40:22.346862Z",
       "basis": "日终净申购赎回；与盘中估算分开",
       "status": "error"
     },
@@ -7705,6 +7705,24 @@
       "market_scope": "跨境"
     },
     {
+      "index_provider": "其他",
+      "index_code": "",
+      "index_name": "未分类",
+      "etf_count": 1,
+      "manager_count": 1,
+      "aum_yi": 27.3661,
+      "turnover_yi": 0.2335,
+      "estimated_flow_yi": -0.0357,
+      "net_subscription_1d_yi": 0.0,
+      "net_subscription_5d_yi": 0,
+      "flow_strength": 1.86,
+      "theme_level1": "待审核",
+      "theme_family": "其他/待人工归类",
+      "theme_confidence": "低",
+      "theme_reason": "未命中现有主题规则",
+      "market_scope": "境内"
+    },
+    {
       "index_provider": "国证指数",
       "index_code": "",
       "index_name": "国证商用卫星通信产业指数",
@@ -7939,6 +7957,24 @@
       "market_scope": "跨境"
     },
     {
+      "index_provider": "其他",
+      "index_code": "",
+      "index_name": "东京日经225指数",
+      "etf_count": 3,
+      "manager_count": 3,
+      "aum_yi": 63.7498,
+      "turnover_yi": 1.1763,
+      "estimated_flow_yi": -0.0943,
+      "net_subscription_1d_yi": 0.0,
+      "net_subscription_5d_yi": 0,
+      "flow_strength": 4.92,
+      "theme_level1": "跨境宽基",
+      "theme_family": "日经225",
+      "theme_confidence": "高",
+      "theme_reason": "名称直接对应日经225",
+      "market_scope": "跨境"
+    },
+    {
       "index_provider": "国证指数",
       "index_code": "",
       "index_name": "国证机器人产业指数",
@@ -7972,24 +8008,6 @@
       "theme_family": "互联网平台",
       "theme_confidence": "高",
       "theme_reason": "名称包含互联网",
-      "market_scope": "跨境"
-    },
-    {
-      "index_provider": "其他",
-      "index_code": "",
-      "index_name": "东京日经225指数",
-      "etf_count": 4,
-      "manager_count": 4,
-      "aum_yi": 91.1159,
-      "turnover_yi": 1.4098,
-      "estimated_flow_yi": -0.1299,
-      "net_subscription_1d_yi": 0.0,
-      "net_subscription_5d_yi": 0,
-      "flow_strength": 6.78,
-      "theme_level1": "跨境宽基",
-      "theme_family": "日经225",
-      "theme_confidence": "高",
-      "theme_reason": "名称直接对应日经225",
       "market_scope": "跨境"
     },
     {
@@ -8387,14 +8405,33 @@
       "flow_strength": 13.54
     },
     {
+      "theme_level1": "宽基",
+      "theme_family": "中证500",
+      "index_count": 3,
+      "etf_count": 32,
+      "manager_count": 22,
+      "aum_yi": 819.0662,
+      "turnover_yi": 2.9663,
+      "estimated_flow_yi": 0.2086,
+      "net_subscription_1d_yi": 0.0,
+      "net_subscription_5d_yi": 0,
+      "exact_indices": [
+        "中证500指数",
+        "中证500自由现金流指数",
+        "中证500等权重指数"
+      ],
+      "review_required": false,
+      "flow_strength": 10.14
+    },
+    {
       "theme_level1": "待审核",
       "theme_family": "其他/待人工归类",
-      "index_count": 154,
-      "etf_count": 450,
-      "manager_count": 48,
-      "aum_yi": 3733.8234,
-      "turnover_yi": 15.7258,
-      "estimated_flow_yi": 0.2259,
+      "index_count": 155,
+      "etf_count": 451,
+      "manager_count": 49,
+      "aum_yi": 3761.1895,
+      "turnover_yi": 15.9593,
+      "estimated_flow_yi": 0.1902,
       "net_subscription_1d_yi": 0.0,
       "net_subscription_5d_yi": 0,
       "exact_indices": [
@@ -8551,29 +8588,11 @@
         "中证全指房地产指数",
         "中证全指电力公用事业指数",
         "上证科创板新材料指数",
+        "未分类",
         "国证通信指数"
       ],
       "review_required": true,
-      "flow_strength": 10.98
-    },
-    {
-      "theme_level1": "宽基",
-      "theme_family": "中证500",
-      "index_count": 3,
-      "etf_count": 32,
-      "manager_count": 22,
-      "aum_yi": 819.0662,
-      "turnover_yi": 2.9663,
-      "estimated_flow_yi": 0.2086,
-      "net_subscription_1d_yi": 0.0,
-      "net_subscription_5d_yi": 0,
-      "exact_indices": [
-        "中证500指数",
-        "中证500自由现金流指数",
-        "中证500等权重指数"
-      ],
-      "review_required": false,
-      "flow_strength": 10.14
+      "flow_strength": 9.24
     },
     {
       "theme_level1": "策略",
@@ -9177,18 +9196,18 @@
       "theme_level1": "跨境宽基",
       "theme_family": "日经225",
       "index_count": 1,
-      "etf_count": 4,
-      "manager_count": 4,
-      "aum_yi": 91.1159,
-      "turnover_yi": 1.4098,
-      "estimated_flow_yi": -0.1299,
+      "etf_count": 3,
+      "manager_count": 3,
+      "aum_yi": 63.7498,
+      "turnover_yi": 1.1763,
+      "estimated_flow_yi": -0.0943,
       "net_subscription_1d_yi": 0.0,
       "net_subscription_5d_yi": 0,
       "exact_indices": [
         "东京日经225指数"
       ],
       "review_required": false,
-      "flow_strength": 6.31
+      "flow_strength": 4.58
     },
     {
       "theme_level1": "科技",
@@ -9457,6 +9476,16 @@
       "bar_width": 9.04
     },
     {
+      "manager": "华安基金",
+      "etf_count": 49,
+      "aum_yi": 1870.0178,
+      "turnover_yi": 8.214,
+      "estimated_flow_yi": 0.2041,
+      "net_subscription_1d_yi": 0.0,
+      "net_subscription_5d_yi": 0,
+      "bar_width": 8.95
+    },
+    {
       "manager": "国联安基金",
       "etf_count": 12,
       "aum_yi": 266.223,
@@ -9475,16 +9504,6 @@
       "net_subscription_1d_yi": 0.0,
       "net_subscription_5d_yi": 0,
       "bar_width": 7.46
-    },
-    {
-      "manager": "华安基金",
-      "etf_count": 50,
-      "aum_yi": 1897.3839,
-      "turnover_yi": 8.4475,
-      "estimated_flow_yi": 0.1684,
-      "net_subscription_1d_yi": 0.0,
-      "net_subscription_5d_yi": 0,
-      "bar_width": 7.38
     },
     {
       "manager": "景顺长城基金",
@@ -9915,6 +9934,16 @@
       "net_subscription_1d_yi": 0.0,
       "net_subscription_5d_yi": 0,
       "bar_width": 0.58
+    },
+    {
+      "manager": "待补充管理人",
+      "etf_count": 1,
+      "aum_yi": 27.3661,
+      "turnover_yi": 0.2335,
+      "estimated_flow_yi": -0.0357,
+      "net_subscription_1d_yi": 0.0,
+      "net_subscription_5d_yi": 0,
+      "bar_width": 1.56
     },
     {
       "manager": "大成基金",
@@ -12753,10 +12782,10 @@
       "aum_yi": 27.366067,
       "estimated_flow_yi": -0.03565081,
       "flow_ratio_pct": -15.27,
-      "manager": "华安基金",
+      "manager": "待补充管理人",
       "index_provider": "其他",
       "index_code": "",
-      "index_name": "东京日经225指数",
+      "index_name": "未分类",
       "net_subscription_1d_yi": 0.0,
       "net_subscription_5d_yi": 0
     },
