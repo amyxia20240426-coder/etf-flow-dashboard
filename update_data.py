@@ -100,7 +100,7 @@ def exchange_code(code: str) -> str:
 def fetch_universe(observed_at: str) -> tuple[list[dict[str, Any]], str, bool]:
     base_params = {
         "pn": 1,
-        "pz": 200,
+        "pz": 100,
         "po": 1,
         "np": 1,
         "fltt": 2,
