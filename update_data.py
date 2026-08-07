@@ -938,10 +938,18 @@ def main() -> None:
     access_token = ""
     quote_message = "公开行情已刷新" if public_quote_fresh else "沿用最近一次成功行情"
     refresh_token = os.environ.get("IFIND_REFRESH_TOKEN", "").strip()
-    if refresh_token:
+    ifind_realtime_enabled = (
+        os.environ.get("IFIND_REALTIME_ENABLED", "false").strip().lower() == "true"
+    )
+    needs_ifind_token = update_mode in {"daily", "full"} or ifind_realtime_enabled
+    if refresh_token and needs_ifind_token:
         try:
             access_token = get_ifind_access_token(refresh_token)
-            if update_mode in {"intraday", "full"} and update_ifind_quotes(rows, access_token):
+            if (
+                update_mode in {"intraday", "full"}
+                and ifind_realtime_enabled
+                and update_ifind_quotes(rows, access_token)
+            ):
                 ifind_quote_fresh = True
                 quote_message = "iFinD实时行情已刷新"
                 source_parts.append("iFinD实时行情")
@@ -960,6 +968,8 @@ def main() -> None:
                 + ("公开行情已刷新" if public_quote_fresh else "沿用最近成功行情")
             )
             source_parts.append("iFinD连接失败，保留公开行情")
+    elif refresh_token and update_mode == "intraday":
+        source_parts.append("盘中使用公开行情；iFinD实时探测已停用")
     else:
         quote_message = (
             "未配置iFinD；"
