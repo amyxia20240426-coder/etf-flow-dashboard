@@ -40,12 +40,12 @@ EASTMONEY_LIST_HOSTS = [
 ]
 
 
-def build_session() -> requests.Session:
+def build_session(retry_total: int = 5) -> requests.Session:
     session = requests.Session()
     retry = Retry(
-        total=5,
-        connect=5,
-        read=5,
+        total=retry_total,
+        connect=retry_total,
+        read=retry_total,
         backoff_factor=1.2,
         status_forcelist=(408, 425, 429, 500, 502, 503, 504),
         allowed_methods=frozenset({"GET", "POST"}),
@@ -68,6 +68,7 @@ def build_session() -> requests.Session:
 
 
 SESSION = build_session()
+QUOTE_SESSION = build_session(retry_total=1)
 
 
 def safe_number(value: Any, divisor: float = 1.0) -> float:
@@ -118,9 +119,9 @@ def fetch_universe(observed_at: str) -> tuple[list[dict[str, Any]], str, bool]:
         for page in range(1, 80):
             params = {**base_params, "pn": page}
             page_diff: list[dict[str, Any]] = []
-            for attempt in range(1, 4):
+            for attempt in range(1, 3):
                 try:
-                    response = SESSION.get(host, params=params, timeout=(15, 45))
+                    response = QUOTE_SESSION.get(host, params=params, timeout=(8, 20))
                     response.raise_for_status()
                     data = (response.json() or {}).get("data") or {}
                     total = int(data.get("total") or total or 0)
@@ -130,7 +131,7 @@ def fetch_universe(observed_at: str) -> tuple[list[dict[str, Any]], str, bool]:
                     errors.append(f"{host} page {page}: empty response")
                 except (requests.RequestException, ValueError) as exc:
                     errors.append(f"{host} page {page} attempt {attempt}: {type(exc).__name__}")
-                    time.sleep(min(10, attempt * 2))
+                    time.sleep(attempt)
             if not page_diff:
                 break
             page_rows.extend(page_diff)
