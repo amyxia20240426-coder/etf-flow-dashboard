@@ -98,6 +98,76 @@ def exchange_code(code: str) -> str:
     return f"{code}.SH" if code.startswith(("5", "6")) else f"{code}.SZ"
 
 
+def fetch_cached_universe_quotes(
+    cached_rows: list[dict[str, Any]], observed_at: str
+) -> tuple[list[dict[str, Any]], str, bool]:
+    """Refresh a known complete ETF universe through reliable batched quotes."""
+    rows = [dict(item) for item in cached_rows if item.get("short_code")]
+    if len(rows) < 500:
+        raise RuntimeError("Cached ETF universe is incomplete")
+    fields = "f12,f14,f2,f3,f6,f20,f62,f184"
+    refreshed: set[str] = set()
+    for offset in range(0, len(rows), 80):
+        batch = rows[offset:offset + 80]
+        secids = ",".join(
+            f"{'1' if item['code'].endswith('.SH') else '0'}.{item['short_code']}"
+            for item in batch
+        )
+        batch_diff: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for clist_host in EASTMONEY_LIST_HOSTS:
+            host = clist_host.replace("/clist/get", "/ulist.np/get")
+            try:
+                response = QUOTE_SESSION.get(
+                    host,
+                    params={
+                        "fltt": 2,
+                        "invt": 2,
+                        "fields": fields,
+                        "secids": secids,
+                    },
+                    timeout=(8, 20),
+                )
+                response.raise_for_status()
+                batch_diff = ((response.json() or {}).get("data") or {}).get("diff") or []
+                if batch_diff:
+                    break
+            except (requests.RequestException, ValueError) as exc:
+                errors.append(f"{host}: {type(exc).__name__}")
+        if not batch_diff:
+            raise RuntimeError(
+                f"Batched ETF quote request failed at offset {offset}: "
+                + "; ".join(errors[-4:])
+            )
+        by_short_code = {item["short_code"]: item for item in batch}
+        for raw in batch_diff:
+            code = str(raw.get("f12") or "").strip()
+            target = by_short_code.get(code)
+            if not target:
+                continue
+            target.update({
+                "name": str(raw.get("f14") or target.get("name") or "").strip(),
+                "price": safe_number(raw.get("f2")),
+                "change_pct": safe_number(raw.get("f3")),
+                "turnover_yi": safe_number(raw.get("f6"), 100_000_000),
+                "aum_yi": safe_number(raw.get("f20"), 100_000_000),
+                "estimated_flow_yi": safe_number(raw.get("f62"), 100_000_000),
+                "flow_ratio_pct": safe_number(raw.get("f184")),
+            })
+            refreshed.add(code)
+        time.sleep(0.08)
+    coverage = len(refreshed) / max(1, len(rows))
+    if coverage < 0.95:
+        raise RuntimeError(
+            f"Batched ETF quote coverage too low: {len(refreshed)}/{len(rows)}"
+        )
+    print(
+        f"ETF quotes refreshed in batches: {len(refreshed)}/{len(rows)} "
+        f"({coverage:.1%})"
+    )
+    return rows, observed_at, True
+
+
 def fetch_universe(observed_at: str) -> tuple[list[dict[str, Any]], str, bool]:
     base_params = {
         "pn": 1,
@@ -928,6 +998,14 @@ def main() -> None:
             or generated_at
         )
         public_quote_fresh = False
+    elif update_mode == "intraday" and previous_payload.get("etfs"):
+        try:
+            rows, public_quote_time, public_quote_fresh = fetch_cached_universe_quotes(
+                previous_payload["etfs"], generated_at
+            )
+        except Exception as exc:
+            print(f"Batched quote warning: {exc}", file=sys.stderr)
+            rows, public_quote_time, public_quote_fresh = fetch_universe(generated_at)
     else:
         rows, public_quote_time, public_quote_fresh = fetch_universe(generated_at)
     source_parts = ["全量ETF列表/资金流估算"]
