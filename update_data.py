@@ -280,7 +280,15 @@ def flatten_ifind_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
         item = candidates.pop(0)
         if isinstance(item, list):
             if item and all(isinstance(row, dict) for row in item):
-                output.extend(item)
+                for row in item:
+                    normalized = {key: value for key, value in row.items() if key != "table"}
+                    nested = row.get("table")
+                    if isinstance(nested, dict):
+                        for key, value in nested.items():
+                            normalized[key] = (
+                                value[-1] if isinstance(value, list) and value else value
+                            )
+                    output.append(normalized)
             else:
                 candidates.extend(item)
         elif isinstance(item, dict):
@@ -987,6 +995,9 @@ def main() -> None:
     update_mode = os.environ.get("UPDATE_MODE", "full").strip().lower()
     if update_mode not in {"intraday", "daily", "full"}:
         raise RuntimeError(f"Unsupported UPDATE_MODE: {update_mode}")
+    ifind_realtime_enabled = (
+        os.environ.get("IFIND_REALTIME_ENABLED", "false").strip().lower() == "true"
+    )
 
     # The daily job must not stamp an evening workflow time onto intraday data.
     # It reuses the last market snapshot and only refreshes confirmed daily flows.
@@ -999,13 +1010,22 @@ def main() -> None:
         )
         public_quote_fresh = False
     elif update_mode == "intraday" and previous_payload.get("etfs"):
-        try:
-            rows, public_quote_time, public_quote_fresh = fetch_cached_universe_quotes(
-                previous_payload["etfs"], generated_at
+        if ifind_realtime_enabled:
+            rows = [dict(item) for item in previous_payload["etfs"]]
+            public_quote_time = str(
+                (((previous_payload.get("as_of") or {}).get("intraday_flow") or {}).get("time"))
+                or previous_payload.get("generated_at")
+                or generated_at
             )
-        except Exception as exc:
-            print(f"Batched quote warning: {exc}", file=sys.stderr)
-            rows, public_quote_time, public_quote_fresh = fetch_universe(generated_at)
+            public_quote_fresh = False
+        else:
+            try:
+                rows, public_quote_time, public_quote_fresh = fetch_cached_universe_quotes(
+                    previous_payload["etfs"], generated_at
+                )
+            except Exception as exc:
+                print(f"Batched quote warning: {exc}", file=sys.stderr)
+                rows, public_quote_time, public_quote_fresh = fetch_universe(generated_at)
     else:
         rows, public_quote_time, public_quote_fresh = fetch_universe(generated_at)
     source_parts = ["全量ETF列表/资金流估算"]
@@ -1017,9 +1037,6 @@ def main() -> None:
     access_token = ""
     quote_message = "公开行情已刷新" if public_quote_fresh else "沿用最近一次成功行情"
     refresh_token = os.environ.get("IFIND_REFRESH_TOKEN", "").strip()
-    ifind_realtime_enabled = (
-        os.environ.get("IFIND_REALTIME_ENABLED", "false").strip().lower() == "true"
-    )
     needs_ifind_token = update_mode in {"daily", "full"} or ifind_realtime_enabled
     if refresh_token and needs_ifind_token:
         try:
@@ -1142,6 +1159,7 @@ def main() -> None:
             else ("cached" if subscription_market else "error")
         )
     intraday_fresh = bool(public_quote_fresh or ifind_quote_fresh)
+    flow_snapshot_fresh = bool(public_quote_fresh)
     intraday_status = {
         "success": intraday_fresh,
         "attempted_at": generated_at,
@@ -1163,9 +1181,9 @@ def main() -> None:
         "source_label": " + ".join(source_parts),
         "as_of": {
             "turnover": {"time": market_quote_time, "basis": "当日累计成交额", "status": "success" if intraday_fresh else "cached"},
-            "intraday_flow": {"time": market_quote_time, "basis": "成交方向资金流估算", "status": "success" if intraday_fresh else "cached"},
+            "intraday_flow": {"time": public_quote_time, "basis": "成交方向资金流估算", "status": "success" if flow_snapshot_fresh else "cached"},
             "price_change": {"time": market_quote_time, "basis": "ETF行情等权涨跌幅", "status": "success" if intraday_fresh else "cached"},
-            "aum": {"time": market_quote_time, "basis": "行情总市值口径，非确认净资产", "status": "success" if intraday_fresh else "cached"},
+            "aum": {"time": public_quote_time, "basis": "行情总市值口径，非确认净资产", "status": "success" if flow_snapshot_fresh else "cached"},
             "trend": {
                 "time": subscription_latest_time,
                 "basis": "iFinD ETF份额变化 × 当日单位净值",
@@ -1176,11 +1194,11 @@ def main() -> None:
                 "basis": "日终净申购赎回；与盘中估算分开",
                 "status": daily_asof_status,
             },
-            "flow_structure": {"time": market_quote_time, "basis": snapshot_basis, "status": "success" if intraday_fresh else "cached"},
-            "aggregation": {"time": market_quote_time, "basis": snapshot_basis, "status": "success" if intraday_fresh else "cached"},
-            "managers": {"time": market_quote_time, "basis": snapshot_basis, "status": "success" if intraday_fresh else "cached"},
-            "activity": {"time": market_quote_time, "basis": "当前资金流截面观察", "status": "success" if intraday_fresh else "cached"},
-            "etf_detail": {"time": market_quote_time, "basis": snapshot_basis, "status": "success" if intraday_fresh else "cached"},
+            "flow_structure": {"time": public_quote_time, "basis": snapshot_basis, "status": "success" if flow_snapshot_fresh else "cached"},
+            "aggregation": {"time": public_quote_time, "basis": snapshot_basis, "status": "success" if flow_snapshot_fresh else "cached"},
+            "managers": {"time": public_quote_time, "basis": snapshot_basis, "status": "success" if flow_snapshot_fresh else "cached"},
+            "activity": {"time": public_quote_time, "basis": "当前资金流截面观察", "status": "success" if flow_snapshot_fresh else "cached"},
+            "etf_detail": {"time": public_quote_time, "basis": snapshot_basis, "status": "success" if flow_snapshot_fresh else "cached"},
         },
         "metrics": metrics,
         "daily_subscription_history": subscription_market,
