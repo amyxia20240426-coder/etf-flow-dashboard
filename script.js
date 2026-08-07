@@ -1,6 +1,9 @@
 let rows = [...document.querySelectorAll("#rows tr")];
 let dashboardData = null;
 let aggregationView = "themes";
+let dataLoading = false;
+let lastBrowserCheck = null;
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 const search = document.querySelector("#search");
 const navButtons = [...document.querySelectorAll("nav button")];
@@ -77,10 +80,18 @@ const isStale = value => {
 function asOfInfo(key, fallbackBasis = "最近一次成功更新") {
   const entry = dashboardData?.as_of?.[key] || {};
   const time = entry.time || dashboardData?.generated_at;
+  const status = entry.status || "unknown";
+  const statusText = status === "success"
+    ? "已刷新"
+    : status === "cached"
+      ? "⚠ 沿用上次成功数据"
+      : status === "error"
+        ? "⚠ 暂无可用数据"
+        : "";
   return {
     time,
-    stale: isStale(time),
-    text: `截至 ${formatBeijing(time)}（北京时间） · ${entry.basis || fallbackBasis}`
+    stale: isStale(time) || status === "cached" || status === "error",
+    text: `截至 ${formatBeijing(time)}（北京时间） · ${entry.basis || fallbackBasis}${statusText ? ` · ${statusText}` : ""}`
   };
 }
 
@@ -347,17 +358,21 @@ function renderDashboard(data) {
   }
 
   const generated = data.generated_at
-    ? new Date(data.generated_at).toLocaleString("zh-CN", { hour12: false })
+    ? formatBeijing(data.generated_at)
     : "未知";
   const dailyStatus = data.daily_subscription_status?.available
-    ? `日度净申赎已覆盖至 ${data.daily_subscription_status.last_date}`
+    ? `日度净申赎已覆盖至 ${data.daily_subscription_status.last_date} · ${data.daily_subscription_status.message || "最近日终任务成功"}`
     : `日度净申赎：${data.daily_subscription_status?.message || "等待回填"}`;
+  const intradayStatus = data.update_status?.intraday?.message || "等待盘中任务状态";
+  const browserCheck = lastBrowserCheck ? formatBeijing(lastBrowserCheck) : "刚刚";
   document.querySelector("#data-status").textContent =
-    `数据范围：沪深上市 ETF · 页面数据文件生成：${generated} · ${dailyStatus} · 各板块实际截至时间见板块标题 · 数据源：${data.source_label || "自动采集"} · 历史起点：${data.history_start || "首次运行后生成"}`;
+    `自动检查：每5分钟（最近检查 ${browserCheck}） · 盘中任务：${intradayStatus} · ${dailyStatus} · 数据文件生成：${generated} · 各板块实际截至时间见标题 · 数据源：${data.source_label || "自动采集"} · 历史起点：${data.history_start || "首次运行后生成"}`;
   bindSearch();
 }
 
 async function loadData() {
+  if (dataLoading) return;
+  dataLoading = true;
   try {
     const stamp = Date.now();
     const dashboardResponse = await fetch(
@@ -365,11 +380,15 @@ async function loadData() {
     );
     if (!dashboardResponse.ok) throw new Error(`dashboard HTTP ${dashboardResponse.status}`);
     dashboardData = await dashboardResponse.json();
+    lastBrowserCheck = new Date().toISOString();
     renderDashboard(dashboardData);
-    renderTrend(365);
+    const activeDays = Number(document.querySelector(".period button.on")?.dataset.days || 365);
+    renderTrend(activeDays);
   } catch (error) {
     document.querySelector("#data-status").textContent =
       `数据更新文件尚未生成，暂时显示页面内置内容。${error.message}`;
+  } finally {
+    dataLoading = false;
   }
 }
 
@@ -417,3 +436,7 @@ search?.addEventListener("input", () => {
 });
 
 loadData();
+window.setInterval(loadData, AUTO_REFRESH_MS);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) loadData();
+});
