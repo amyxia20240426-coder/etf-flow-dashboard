@@ -1,77 +1,77 @@
 {
   "schema_version": 6,
-  "generated_at": "2026-08-07T05:51:54.457662Z",
+  "generated_at": "2026-08-07T06:31:26.854081Z",
   "update_mode": "intraday",
   "update_status": {
     "last_job": {
       "mode": "intraday",
-      "completed_at": "2026-08-07T05:51:54.457662Z"
+      "completed_at": "2026-08-07T06:31:26.854081Z"
     },
     "intraday": {
-      "success": true,
-      "attempted_at": "2026-08-07T05:51:54.457662Z",
+      "success": false,
+      "attempted_at": "2026-08-07T06:31:26.854081Z",
       "data_time": "2026-08-07T05:51:54.457662Z",
-      "message": "iFinD实时字段未返回可用值；公开行情已刷新"
+      "message": "沿用最近一次成功行情"
     },
     "daily": {}
   },
   "history_start": "2026-08-03",
-  "source_label": "全量ETF列表/资金流估算 + iFinD已连接，实时字段待授权 + 日度净申赎沿用最近日终数据",
+  "source_label": "全量ETF列表/资金流估算 + 公开行情沿用最近成功快照 + 盘中使用公开行情；iFinD实时探测已停用 + 日度净申赎沿用最近日终数据",
   "as_of": {
     "turnover": {
       "time": "2026-08-07T05:51:54.457662Z",
       "basis": "当日累计成交额",
-      "status": "success"
+      "status": "cached"
     },
     "intraday_flow": {
       "time": "2026-08-07T05:51:54.457662Z",
       "basis": "成交方向资金流估算",
-      "status": "success"
+      "status": "cached"
     },
     "price_change": {
       "time": "2026-08-07T05:51:54.457662Z",
       "basis": "ETF行情等权涨跌幅",
-      "status": "success"
+      "status": "cached"
     },
     "aum": {
       "time": "2026-08-07T05:51:54.457662Z",
       "basis": "行情总市值口径，非确认净资产",
-      "status": "success"
+      "status": "cached"
     },
     "trend": {
-      "time": "2026-08-07T05:51:54.457662Z",
+      "time": "2026-08-07T06:31:26.854081Z",
       "basis": "iFinD ETF份额变化 × 当日单位净值",
       "status": "error"
     },
     "daily_flow": {
-      "time": "2026-08-07T05:51:54.457662Z",
+      "time": "2026-08-07T06:31:26.854081Z",
       "basis": "日终净申购赎回；与盘中估算分开",
       "status": "error"
     },
     "flow_structure": {
       "time": "2026-08-07T05:51:54.457662Z",
       "basis": "盘中行情快照；非交易时段显示最近一次成功更新",
-      "status": "success"
+      "status": "cached"
     },
     "aggregation": {
       "time": "2026-08-07T05:51:54.457662Z",
       "basis": "盘中行情快照；非交易时段显示最近一次成功更新",
-      "status": "success"
+      "status": "cached"
     },
     "managers": {
       "time": "2026-08-07T05:51:54.457662Z",
       "basis": "盘中行情快照；非交易时段显示最近一次成功更新",
-      "status": "success"
+      "status": "cached"
     },
     "activity": {
       "time": "2026-08-07T05:51:54.457662Z",
       "basis": "当前资金流截面观察",
-      "status": "success"
+      "status": "cached"
     },
     "etf_detail": {
       "time": "2026-08-07T05:51:54.457662Z",
       "basis": "盘中行情快照；非交易时段显示最近一次成功更新",
-      "status": "success"
+      "status": "cached"
     }
   },
   "metrics": {
