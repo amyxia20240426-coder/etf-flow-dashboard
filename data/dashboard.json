@@ -1,11 +1,11 @@
 {
   "schema_version": 6,
-  "generated_at": "2026-08-25T08:23:22.191580Z",
-  "update_mode": "intraday",
+  "generated_at": "2026-08-25T11:53:32.179950Z",
+  "update_mode": "daily",
   "update_status": {
     "last_job": {
-      "mode": "intraday",
-      "completed_at": "2026-08-25T08:23:22.191580Z"
+      "mode": "daily",
+      "completed_at": "2026-08-25T11:53:32.179950Z"
     },
     "intraday": {
       "success": true,
@@ -15,18 +15,18 @@
     },
     "daily": {
       "success": false,
-      "attempted_at": "2026-08-24T11:49:32.317413Z",
+      "attempted_at": "2026-08-25T11:53:32.179950Z",
       "data_time": "",
       "message": "iFinD指标 ths_share_fund 未找到可用参数格式（测试代码 510300.SH）：error happen with input parameters, please have a check.; error happen with input parameters, please have a check.; error happen with input parameters, please have a check.; error happen with input parameters, please have a check."
     }
   },
   "history_start": "2026-08-03",
-  "source_label": "全量ETF列表/资金流估算 + 公开行情沿用最近成功快照 + iFinD实时行情 + 日度净申赎沿用最近日终数据",
+  "source_label": "全量ETF列表/资金流估算 + 盘中行情沿用最近成功快照 + iFinD日终任务 + iFinD日度净申赎待确认权限",
   "as_of": {
     "turnover": {
-      "time": "2026-08-25T08:23:22.191580Z",
+      "time": "2026-08-07T01:38:30.615343Z",
       "basis": "当日累计成交额",
-      "status": "success"
+      "status": "cached"
     },
     "intraday_flow": {
       "time": "2026-08-07T01:38:30.615343Z",
@@ -34,9 +34,9 @@
       "status": "cached"
     },
     "price_change": {
-      "time": "2026-08-25T08:23:22.191580Z",
+      "time": "2026-08-07T01:38:30.615343Z",
       "basis": "ETF行情等权涨跌幅",
-      "status": "success"
+      "status": "cached"
     },
     "aum": {
       "time": "2026-08-07T01:38:30.615343Z",
@@ -44,12 +44,12 @@
       "status": "cached"
     },
     "trend": {
-      "time": "2026-08-25T08:23:22.191580Z",
+      "time": "2026-08-25T11:53:32.179950Z",
       "basis": "iFinD ETF份额变化 × 当日单位净值",
       "status": "error"
     },
     "daily_flow": {
-      "time": "2026-08-25T08:23:22.191580Z",
+      "time": "2026-08-25T11:53:32.179950Z",
       "basis": "日终净申购赎回；与盘中估算分开",
       "status": "error"
     },
@@ -92,7 +92,7 @@
   "daily_subscription_status": {
     "available": false,
     "message": "iFinD指标 ths_share_fund 未找到可用参数格式（测试代码 510300.SH）：error happen with input parameters, please have a check.; error happen with input parameters, please have a check.; error happen with input parameters, please have a check.; error happen with input parameters, please have a check.",
-    "last_attempt": "2026-08-24T11:49:32.317413Z"
+    "last_attempt": "2026-08-25T11:53:32.179950Z"
   },
   "indices": [
     {
