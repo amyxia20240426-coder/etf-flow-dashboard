@@ -1,16 +1,16 @@
 {
   "schema_version": 6,
-  "generated_at": "2026-08-31T10:37:01.128824Z",
-  "update_mode": "daily",
+  "generated_at": "2026-08-31T15:27:54.483268Z",
+  "update_mode": "intraday",
   "update_status": {
     "last_job": {
-      "mode": "daily",
-      "completed_at": "2026-08-31T10:37:01.128824Z"
+      "mode": "intraday",
+      "completed_at": "2026-08-31T15:27:54.483268Z"
     },
     "intraday": {
       "success": true,
-      "attempted_at": "2026-08-31T07:36:35.926274Z",
-      "data_time": "2026-08-31T07:36:35.926274Z",
+      "attempted_at": "2026-08-31T15:27:54.483268Z",
+      "data_time": "2026-08-31T15:27:54.483268Z",
       "message": "iFinD实时行情已刷新"
     },
     "daily": {
@@ -21,12 +21,12 @@
     }
   },
   "history_start": "2026-08-03",
-  "source_label": "全量ETF列表/资金流估算 + 盘中行情沿用最近成功快照 + iFinD日终任务 + iFinD日度净申赎待确认权限",
+  "source_label": "全量ETF列表/资金流估算 + 公开行情沿用最近成功快照 + iFinD实时行情 + 日度净申赎沿用最近日终数据",
   "as_of": {
     "turnover": {
-      "time": "2026-08-07T01:38:30.615343Z",
+      "time": "2026-08-31T15:27:54.483268Z",
       "basis": "当日累计成交额",
-      "status": "cached"
+      "status": "success"
     },
     "intraday_flow": {
       "time": "2026-08-07T01:38:30.615343Z",
@@ -34,9 +34,9 @@
       "status": "cached"
     },
     "price_change": {
-      "time": "2026-08-07T01:38:30.615343Z",
+      "time": "2026-08-31T15:27:54.483268Z",
       "basis": "ETF行情等权涨跌幅",
-      "status": "cached"
+      "status": "success"
     },
     "aum": {
       "time": "2026-08-07T01:38:30.615343Z",
@@ -44,12 +44,12 @@
       "status": "cached"
     },
     "trend": {
-      "time": "2026-08-31T10:37:01.128824Z",
+      "time": "2026-08-31T15:27:54.483268Z",
       "basis": "iFinD ETF份额变化 × 当日单位净值",
       "status": "error"
     },
     "daily_flow": {
-      "time": "2026-08-31T10:37:01.128824Z",
+      "time": "2026-08-31T15:27:54.483268Z",
       "basis": "日终净申购赎回；与盘中估算分开",
       "status": "error"
     },
