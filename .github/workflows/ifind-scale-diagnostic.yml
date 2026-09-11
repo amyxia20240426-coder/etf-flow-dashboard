@@ -15,12 +15,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Install requests
+        run: python -m pip install requests
+
       - name: Probe ETF scale fields
         env:
           IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
         run: |
           python - <<'PY'
-          import json, os, time\n          import requests
+          import json, os, time
+          import requests
 
           BASE = "https://quantapi.51ifind.com/api/v1"
           refresh = os.environ.get("IFIND_REFRESH_TOKEN", "").strip()
