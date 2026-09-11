@@ -1,0 +1,153 @@
+name: iFinD ETF scale field diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ifind-scale-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Probe ETF scale fields
+        env:
+          IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os, time, urllib.request, urllib.error
+
+          BASE = "https://quantapi.51ifind.com/api/v1"
+          refresh = os.environ.get("IFIND_REFRESH_TOKEN", "").strip()
+          if not refresh:
+              raise SystemExit("DIAG TOKEN missing")
+
+          def post(path, headers, body=None, timeout=35):
+              data = None if body is None else json.dumps(body).encode()
+              req = urllib.request.Request(
+                  BASE + path, data=data,
+                  headers={**headers, "Content-Type": "application/json"},
+                  method="POST",
+              )
+              with urllib.request.urlopen(req, timeout=timeout) as response:
+                  return json.loads(response.read().decode())
+
+          token = None
+          for attempt in range(1, 4):
+              try:
+                  payload = post("/get_access_token", {"refresh_token": refresh}, timeout=35)
+                  token = payload.get("access_token") or (payload.get("data") or {}).get("access_token") or (payload.get("data") or {}).get("accessToken")
+                  if token:
+                      print("DIAG AUTH success")
+                      break
+                  print("DIAG AUTH no_token keys=" + ",".join(payload.keys()))
+              except Exception as exc:
+                  print(f"DIAG AUTH attempt={attempt} error={type(exc).__name__}:{str(exc)[:140]}")
+                  time.sleep(attempt * 3)
+          if not token:
+              raise SystemExit("DIAG AUTH failed")
+
+          headers = {"access_token": str(token), "ifindlang": "cn"}
+
+          def error_text(payload):
+              code = payload.get("errorcode", payload.get("errorCode", 0))
+              message = payload.get("errmsg") or payload.get("errorMsg") or ""
+              return code, str(message)[:180]
+
+          def values_for(node, indicator):
+              found = []
+              if isinstance(node, dict):
+                  if indicator in node:
+                      value = node[indicator]
+                      if isinstance(value, list):
+                          found.extend(x for x in value if x not in (None, "", "-", "--"))
+                      elif value not in (None, "", "-", "--"):
+                          found.append(value)
+                  for value in node.values():
+                      found.extend(values_for(value, indicator))
+              elif isinstance(node, list):
+                  for value in node:
+                      found.extend(values_for(value, indicator))
+              return found
+
+          # Known-good connectivity control.
+          try:
+              p = post("/real_time_quotation", headers, {
+                  "codes": "510300.SH,159915.SZ",
+                  "indicators": "latest,changeRatio,amount,iopv,premium,premiumRatio",
+              })
+              code, msg = error_text(p)
+              print(f"DIAG REALTIME errorcode={code} errmsg={msg!r} latest_values={len(values_for(p, 'latest'))} iopv_values={len(values_for(p, 'iopv'))}")
+          except Exception as exc:
+              print(f"DIAG REALTIME transport={type(exc).__name__}:{str(exc)[:180]}")
+
+          date_candidates = [
+              "ths_share_fund", "ths_fund_share_fund", "ths_total_share_fund",
+              "ths_nav_fund", "ths_unit_nav_fund", "ths_adjnav_fund",
+              "ths_total_net_asset_fund", "ths_net_asset_value_fund",
+          ]
+          param_variants = [None, [""], ["100"], ["", "100"]]
+          for indicator in date_candidates:
+              success = False
+              last = ""
+              for params in param_variants:
+                  item = {"indicator": indicator}
+                  if params is not None:
+                      item["indiparams"] = params
+                  try:
+                      p = post("/date_sequence", headers, {
+                          "codes": "510300.SH,159915.SZ",
+                          "startdate": "20260901",
+                          "enddate": "20260910",
+                          "functionpara": {"Days": "Tradedays", "Fill": "Blank", "Interval": "D"},
+                          "indipara": [item],
+                      }, timeout=50)
+                      code, msg = error_text(p)
+                      vals = values_for(p, indicator)
+                      last = f"errorcode={code} errmsg={msg!r} values={len(vals)}"
+                      if vals:
+                          print(f"DIAG DATE indicator={indicator} params={params!r} SUCCESS values={len(vals)} sample={str(vals[:2])[:100]}")
+                          success = True
+                          break
+                  except Exception as exc:
+                      last = f"transport={type(exc).__name__}:{str(exc)[:150]}"
+                  time.sleep(0.2)
+              if not success:
+                  print(f"DIAG DATE indicator={indicator} FAIL {last}")
+
+          basic_candidates = [
+              "ths_share_fund", "ths_nav_fund", "ths_fund_scale_fund",
+              "ths_net_asset_fund", "ths_netasset_fund", "ths_total_net_asset_fund",
+              "ths_tracking_index_fund", "ths_track_index_fund",
+              "ths_index_name_fund", "ths_fund_type_fund",
+          ]
+          for indicator in basic_candidates:
+              success = False
+              last = ""
+              for params in (None, [""], ["20260910"], ["20260910", "100"]):
+                  item = {"indicator": indicator}
+                  if params is not None:
+                      item["indiparams"] = params
+                  try:
+                      p = post("/basic_data_service", headers, {
+                          "codes": "510300.SH,159915.SZ",
+                          "indipara": [item],
+                      }, timeout=50)
+                      code, msg = error_text(p)
+                      vals = values_for(p, indicator)
+                      last = f"errorcode={code} errmsg={msg!r} values={len(vals)}"
+                      if vals:
+                          print(f"DIAG BASIC indicator={indicator} params={params!r} SUCCESS values={len(vals)} sample={str(vals[:2])[:100]}")
+                          success = True
+                          break
+                  except Exception as exc:
+                      last = f"transport={type(exc).__name__}:{str(exc)[:150]}"
+                  time.sleep(0.2)
+              if not success:
+                  print(f"DIAG BASIC indicator={indicator} FAIL {last}")
+          PY
