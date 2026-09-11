@@ -1,15 +1,15 @@
 {
   "schema_version": 6,
-  "generated_at": "2026-09-10T14:34:54.327841Z",
-  "update_mode": "daily",
+  "generated_at": "2026-09-11T05:54:52.621632Z",
+  "update_mode": "intraday",
   "update_status": {
     "last_job": {
-      "mode": "daily",
-      "completed_at": "2026-09-10T14:34:54.327841Z"
+      "mode": "intraday",
+      "completed_at": "2026-09-11T05:54:52.621632Z"
     },
     "intraday": {
       "success": false,
-      "attempted_at": "2026-09-10T11:11:48.550463Z",
+      "attempted_at": "2026-09-11T05:54:52.621632Z",
       "data_time": "2026-08-07T01:38:30.615343Z",
       "message": "iFinD实时字段未返回可用值；沿用最近成功行情"
     },
@@ -21,7 +21,7 @@
     }
   },
   "history_start": "2026-08-03",
-  "source_label": "全量ETF列表/资金流估算 + 盘中行情沿用最近成功快照 + iFinD连接失败，保留公开行情",
+  "source_label": "全量ETF列表/资金流估算 + 公开行情沿用最近成功快照 + iFinD已连接，实时字段待授权 + 日度净申赎沿用最近日终数据",
   "as_of": {
     "turnover": {
       "time": "2026-08-07T01:38:30.615343Z",
@@ -44,12 +44,12 @@
       "status": "cached"
     },
     "trend": {
-      "time": "2026-09-10T14:34:54.327841Z",
+      "time": "2026-09-11T05:54:52.621632Z",
       "basis": "iFinD ETF份额变化 × 当日单位净值",
       "status": "error"
     },
     "daily_flow": {
-      "time": "2026-09-10T14:34:54.327841Z",
+      "time": "2026-09-11T05:54:52.621632Z",
       "basis": "日终净申购赎回；与盘中估算分开",
       "status": "error"
     },
