@@ -20,7 +20,7 @@ jobs:
           IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
         run: |
           python - <<'PY'
-          import json, os, time, urllib.request, urllib.error
+          import json, os, time\n          import requests
 
           BASE = "https://quantapi.51ifind.com/api/v1"
           refresh = os.environ.get("IFIND_REFRESH_TOKEN", "").strip()
@@ -28,14 +28,15 @@ jobs:
               raise SystemExit("DIAG TOKEN missing")
 
           def post(path, headers, body=None, timeout=35):
-              data = None if body is None else json.dumps(body).encode()
-              req = urllib.request.Request(
-                  BASE + path, data=data,
+              response = requests.post(
+                  BASE + path,
                   headers={**headers, "Content-Type": "application/json"},
-                  method="POST",
+                  json=body,
+                  timeout=timeout,
               )
-              with urllib.request.urlopen(req, timeout=timeout) as response:
-                  return json.loads(response.read().decode())
+              if not response.ok:
+                  raise RuntimeError(f"HTTP {response.status_code}: {response.text[:180]}")
+              return response.json()
 
           token = None
           for attempt in range(1, 4):
